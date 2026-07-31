@@ -12,7 +12,7 @@ const statNamesIt = {
   speed: 'Velocità'
 };
 
-const state = { all:[], displayed:[], selectedTypes:[], page:0, ascending:true, detailCache:new Map(), typeMembers:new Map(), typeRelations:new Map(), active:null };
+const state = { all:[], displayed:[], selectedTypes:[], page:0, ascending:true, detailCache:new Map(), abilityCache:new Map(), typeMembers:new Map(), typeRelations:new Map(), active:null };
 const el = id => document.getElementById(id);
 const search = el('pokemonSearch'), list = el('pokemonList'), count = el('resultCount');
 const pretty = name => namesIt[name] || name.replaceAll('-', ' ').replace(/\b\w/g, c=>c.toUpperCase());
@@ -20,24 +20,13 @@ const num = item => Number(item.url.split('/').filter(Boolean).pop());
 const sprite = (id, name) => `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/home/${id}.png`;
 const tag = type => { const [label,color]=typeMeta[type]; return `<span class="type-badge" style="--type-color:${color}">${label}</span>` };
 
-// Calcolo Statistiche Livello 50 - Regole Pokémon Champions (NO IV, Max EV = 32)
-function calcStatLvl50Champions(statName, base, name) {
-  const evMax = 32;
-  const evBoostMax = Math.floor(evMax / 4); // 8 punti bonus stat con 32 EV
-  
+// Calcolo Statistiche Modificate (+75 HP, +20 altre stats)
+function calcModdedStat(statName, baseStat, name) {
   if (statName === 'hp') {
-    if (name === 'shedinja') return { min: 1, max: 1 };
-    const min = base + 10 + 50;                  // 0 IV, 0 EV
-    const max = base + 10 + 50 + evBoostMax;     // 0 IV, 32 EV
-    return { min, max };
-  } else {
-    const rawMin = base + 5;                     // 0 IV, 0 EV
-    const rawMax = base + 5 + evBoostMax;        // 0 IV, 32 EV
-    
-    const min = Math.floor(rawMin * 0.9);        // Natura -10%
-    const max = Math.floor(rawMax * 1.1);        // Natura +10%
-    return { min, max };
+    if (name === 'shedinja') return 1;
+    return baseStat + 75;
   }
+  return baseStat + 20;
 }
 
 function renderTypes(){
@@ -86,10 +75,42 @@ async function selectPokemon(name,id){
   catch {el('detailCard').innerHTML='<div class="detail-empty"><p>Dettaglio non disponibile.</p></div>'}
 }
 
+async function showAbilityDetail(abilityName, url) {
+  let desc = state.abilityCache.get(abilityName);
+  if(!desc) {
+    try {
+      const r = await fetch(url);
+      const data = await r.json();
+      const itEntry = data.flavor_text_entries.find(e => e.language.name === 'it') || data.flavor_text_entries.find(e => e.language.name === 'en');
+      desc = itEntry ? itEntry.flavor_text.replace(/[\n\f]/g, ' ') : "Nessuna descrizione disponibile.";
+      state.abilityCache.set(abilityName, desc);
+    } catch {
+      desc = "Impossibile caricare la descrizione dell'abilità.";
+    }
+  }
+  
+  let modal = el('abilityModal');
+  if(!modal) {
+    modal = document.createElement('div');
+    modal.id = 'abilityModal';
+    modal.className = 'ability-modal';
+    document.body.appendChild(modal);
+  }
+  modal.innerHTML = `
+    <div class="ability-modal-content">
+      <button class="ability-modal-close" onclick="document.getElementById('abilityModal').classList.remove('show')">×</button>
+      <p class="eyebrow">ABILITÀ</p>
+      <h3>${pretty(abilityName)}</h3>
+      <p>${desc}</p>
+    </div>
+  `;
+  modal.classList.add('show');
+}
+
 function renderDetail(p){
   const types=p.types.sort((a,b)=>a.slot-b.slot).map(x=>x.type.name); 
   
-  // 1. CALCOLO DIFESA (Debolezze subite)
+  // 1. DIFESA (Debolezze subite - x4 consentito)
   const defenses={};
   for(const t of p.types){ 
     const rel=state.typeRelations.get(t.type.name); 
@@ -100,28 +121,40 @@ function renderDetail(p){
   const weak=Object.entries(defenses).filter(([,v])=>v>1).sort((a,b)=>b[1]-a[1]);
   const resistant=Object.entries(defenses).filter(([,v])=>v<1).map(([t,v])=>`${typeMeta[t][0]} ${v===0?'×0':'½'}`).join(' · ');
 
-  // 2. CALCOLO ATTACCO (Super Efficace STAB)
-  const offense={};
+  // 2. ATTACCO (Solo x2, x4 rimossi)
+  const offenseSet = new Set();
   for(const t of p.types){
     const rel=state.typeRelations.get(t.type.name);
     for(const x of rel.double_damage_to) {
-      offense[x.name] = (offense[x.name] || 1) * 2;
+      offenseSet.add(x.name);
     }
   }
-  const superEffective = Object.entries(offense).sort((a,b)=>b[1]-a[1]);
+  const superEffective = Array.from(offenseSet);
 
-  // 3. ESTRAZIONE STATISTICHE (Champions Lvl 50, EV max 32, NO IV)
+  // 3. STATISTICHE CON BARRA GRAPH (Senza EV32)
+  const maxBarValue = 180; // Valore massimo per il riempimento della barra
   const statsHtml = p.stats.map(s => {
     const sName = statNamesIt[s.stat.name] || s.stat.name;
-    const base = s.base_stat;
-    const l50 = calcStatLvl50Champions(s.stat.name, base, p.name);
+    const moddedVal = calcModdedStat(s.stat.name, s.base_stat, p.name);
+    const fillPercent = Math.min(100, Math.max(12, (moddedVal / maxBarValue) * 100));
+    const isTop = moddedVal >= 120; // Evidenzia in verde le stat più pericolose
+    
     return `
-      <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; margin-bottom:5px;">
-        <span style="color:var(--muted); min-width:65px;">${sName}</span>
-        <strong style="color:var(--ink); font-family:'DM Mono'; font-size:11px;">Base: ${base}</strong>
-        <span style="color:var(--lime); font-family:'DM Mono'; font-size:11px;">Lvl 50: ${l50.min}-${l50.max}</span>
+      <div class="stat-row">
+        <span class="stat-label">${sName}</span>
+        <span class="stat-val">${moddedVal}</span>
+        <div class="stat-bar-bg">
+          <div class="stat-bar-fill ${isTop ? 'high' : ''}" style="width: ${fillPercent}%;"></div>
+        </div>
       </div>`;
   }).join('');
+
+  // 4. ABILITÀ
+  const abilitiesHtml = p.abilities.map(a => `
+    <button class="ability-btn" onclick="showAbilityDetail('${a.ability.name}', '${a.ability.url}')">
+      ${pretty(a.ability.name)} ${a.is_hidden ? '<small>(Nascosta)</small>' : ''}
+    </button>
+  `).join('');
 
   const accent=typeMeta[types[0]][1];
   
@@ -134,19 +167,23 @@ function renderDetail(p){
       <h2>${pretty(p.name)}</h2>
       <div class="card-types">${types.map(tag).join('')}</div>
       
-      <!-- STATISTICHE A LIVELLO 50 (FORMATO CHAMPIONS) -->
-      <p class="weakness-label" style="color:var(--lime); border-bottom:1px solid var(--line); padding-bottom:4px; margin-top:10px;">STATISTICHE LVL 50 (EV MAX 32 · NO IV)</p>
-      <div style="margin-bottom:18px; background:rgba(255,255,255,0.03); padding:10px; border-radius:4px; border:1px solid var(--line);">
+      <!-- ABILITÀ -->
+      <p class="weakness-label" style="color:var(--lime); margin-top:10px;">ABILITÀ (CLICCA PER DETTAGLI)</p>
+      <div class="abilities-wrap">${abilitiesHtml}</div>
+
+      <!-- STATISTICHE BASE MODIFICATE -->
+      <p class="weakness-label" style="color:var(--lime); border-bottom:1px solid var(--line); padding-bottom:4px; margin-top:16px;">STATISTICHE (+75 HP / +20 ATK-DEF-SPE)</p>
+      <div class="stats-box">
         ${statsHtml}
       </div>
 
-      <!-- DANNI INFLITTI (ATTACCO STAB) -->
+      <!-- DANNI INFLITTI (ATTACCO STAB - SOLO X2) -->
       <p class="weakness-label" style="color:var(--lime)">SUPER EFFICACE CONTRO (STAB)</p>
       <div class="weaknesses" style="margin-bottom:18px;">
-        ${superEffective.length ? superEffective.map(([t,v])=>`<span class="weakness" style="--type-color:${typeMeta[t][1]}">${typeMeta[t][0]}<b>×${v}</b></span>`).join('') : '<span class="weakness">Nessun tipo</span>'}
+        ${superEffective.length ? superEffective.map(t=>`<span class="weakness" style="--type-color:${typeMeta[t][1]}">${typeMeta[t][0]}<b>×2</b></span>`).join('') : '<span class="weakness">Nessun tipo</span>'}
       </div>
 
-      <!-- DANNI SUBITI (DIFESA) -->
+      <!-- DANNI SUBITI (DIFESA - ANCHE X4) -->
       <p class="weakness-label">DEBOLEZZE (DANNI SUBITI)</p>
       <div class="weaknesses">
         ${weak.length?weak.map(([t,v])=>`<span class="weakness" style="--type-color:${typeMeta[t][1]}">${typeMeta[t][0]}<b>×${v}</b></span>`).join(''):'<span class="weakness">Nessuna</span>'}
