@@ -232,6 +232,7 @@ input::placeholder {
   box-shadow: 0 16px 35px #080a10;
   max-height: 290px;
   overflow: auto;
+  z-index: 10;
 }
 
 .suggestions.show {
@@ -249,6 +250,7 @@ input::placeholder {
   padding: 9px 13px;
   text-align: left;
   align-items: center;
+  cursor: pointer;
 }
 
 .suggestion:hover {
@@ -368,6 +370,7 @@ input::placeholder {
   position: relative;
   overflow: hidden;
   transition: .2s;
+  cursor: pointer;
 }
 
 .pokemon-card:nth-child(3n) {
@@ -626,6 +629,10 @@ dialog {
   padding: 33px;
   box-shadow: 0 20px 80px #000;
   line-height: 1.55;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
 }
 
 dialog::backdrop {
@@ -645,16 +652,12 @@ dialog h2 {
   background: transparent;
   color: var(--ink);
   font-size: 23px;
+  cursor: pointer;
 }
 
-/* =========================================================
-   INTEGRAZIONI PER STATISTICHE E ABILITÀ (INTEGRATE NEL TEMA)
-   ========================================================= */
-
+/* STATISTICHE E ABILITÀ */
 .stats-container {
-  margin-top: 20px;
-  padding-top: 16px;
-  border-top: 1px solid var(--line);
+  margin-top: 10px;
 }
 
 .stat-row {
@@ -666,7 +669,7 @@ dialog h2 {
 }
 
 .stat-label {
-  width: 55px;
+  width: 65px;
   color: var(--muted);
   text-transform: uppercase;
 }
@@ -691,12 +694,6 @@ dialog h2 {
   background: var(--lime);
   border-radius: 2px;
   transition: width 0.3s ease;
-}
-
-.abilities-container {
-  margin-top: 18px;
-  padding-top: 16px;
-  border-top: 1px solid var(--line);
 }
 
 .abilities-list {
@@ -759,7 +756,7 @@ dialog h2 {
   margin: 0;
 }
 
-/* MEDIA QUERIES ORIGINALI */
+/* MEDIA QUERIES */
 @media(max-width:780px) {
   .app-shell {
     width: min(100% - 28px, 1280px);
