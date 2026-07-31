@@ -1,100 +1,90 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Dex Atlas — Pokedex</title>
-  <link rel="stylesheet" href="styles.css" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dex Atlas — Pokédex</title>
+  <link rel="stylesheet" href="styles.css?v=1.1">
 </head>
 <body>
-  <div class="noise"></div>
-  
   <div class="app-shell">
-    <!-- TOPBAR -->
     <header class="topbar">
-      <a href="#" class="brand">
-        <div class="brand-mark"><i></i></div>
-        <b>DEX ATLAS</b>
-      </a>
-      <div class="generation-pill"><span></span>National Dex · Z-A era</div>
-      <button class="about-button" id="btn-about">Come funziona <span>↗</span></button>
+      <div class="brand">
+        <span class="brand-title">DEX ATLAS</span>
+      </div>
+      <div class="topbar-actions">
+        <span class="generation-pill">GEN I - IX</span>
+        <button id="btn-about" class="about-button">INFO</button>
+      </div>
     </header>
 
-    <!-- HERO -->
-    <section class="hero">
-      <p class="eyebrow">POKEDEX · ENCICLOPEDIA DI TUTTE LE GENERAZIONI</p>
-      <h1>Pokedex</h1>
-      <p class="intro">Cerca un Pokémon per vedere le debolezze reali, oppure combina fino a due tipi per trovarne uno da catturare.</p>
-    </section>
-
-    <!-- CONTROLLI / FILTRI -->
-    <section class="control-panel">
-      <div class="search-wrap">
-        <label for="search-input">Cerca per nome o numero</label>
-        <div class="search-field">
-          <span class="search-icon">⌕</span>
-          <input type="text" id="search-input" placeholder="Es. Charizard, Lucario o #0006" autocomplete="off" />
-          <button id="btn-clear-search">×</button>
-        </div>
-        <div id="suggestions" class="suggestions"></div>
-      </div>
-
-      <div class="divider"></div>
-
-      <div class="type-filter">
-        <div class="filter-head">
-          <label>Filtra per tipo</label>
-          <button id="btn-reset-types">Reset</button>
-        </div>
-        <p>Scegli fino a <strong>2 tipi</strong></p>
-        <div id="type-grid" class="type-grid"></div>
-      </div>
-    </section>
-
-    <!-- GRIGLIA POKÉMON E DETTAGLIO -->
-    <main class="content-grid">
-      <!-- COLONNA SINISTRA: LISTA POKEMON -->
-      <section class="pokemon-section">
-        <div class="section-title">
-          <span id="pokemon-count">0 POKÉMON</span>
-          <div class="rule"></div>
-          <button id="btn-sort" class="sort-button">Ordina: <span>Numero ↓</span></button>
-        </div>
-        
-        <div id="pokemon-list" class="pokemon-list"></div>
-        <button id="btn-load-more" class="load-more" style="display: none;">Carica altri</button>
+    <main>
+      <section class="hero">
+        <p class="hero-tagline">POKÉDEX · ENCICLOPEDIA DI TUTTE LE GENERAZIONI</p>
+        <h1 class="hero-title">Pokédex</h1>
+        <p class="hero-description">Cerca un Pokémon per vedere le debolezze reali, oppure combina fino a due tipi per trovarne uno da catturare.</p>
       </section>
 
-      <!-- COLONNA DESTRA: DETTAGLIO POKÉMON SELEZIONATO -->
-      <aside class="detail-section">
-        <div id="detail-card" class="detail-card">
-          <div class="detail-empty">
-            <div class="radar"><i></i></div>
-            <p>Seleziona un Pokémon per vederne le informazioni</p>
+      <section class="control-panel">
+        <div class="search-group">
+          <label for="search-input" class="search-label">Cerca per nome o numero</label>
+          <div class="search-box">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="search-input" placeholder="Es. Charizard, Lucario o #0006" autocomplete="off">
+            <button id="btn-clear-search" class="clear-button" aria-label="Cancella ricerca">✕</button>
+            <div id="suggestions" class="suggestions-dropdown"></div>
           </div>
         </div>
-      </aside>
+
+        <div class="divider"></div>
+
+        <div class="type-filter-group">
+          <div class="type-filter-header">
+            <span class="filter-label">Filtra per tipo</span>
+            <button id="btn-reset-types" class="reset-button">RESET</button>
+          </div>
+          <p class="filter-instruction">Scegli fino a <strong>2 tipi</strong></p>
+          <div id="type-grid" class="type-grid"></div>
+        </div>
+      </section>
+
+      <section class="content-grid">
+        <aside class="detail-section">
+          <div id="detail-card" class="detail-card">
+            <div class="detail-empty">
+              <p>Seleziona un Pokémon per vederne le informazioni</p>
+            </div>
+          </div>
+        </aside>
+
+        <section class="pokemon-section">
+          <div class="list-header">
+            <span id="pokemon-count" class="count-badge">0 POKÉMON</span>
+            <button id="btn-sort" class="sort-button">Ordina: <span>Numero ↓</span></button>
+          </div>
+          <div id="pokemon-list" class="pokemon-list"></div>
+          <button id="btn-load-more" class="load-more-button" style="display:none;">Carica altri</button>
+        </section>
+      </section>
     </main>
   </div>
 
-  <!-- DIALOG DI SPIEGAZIONE -->
-  <dialog id="about-dialog">
-    <button class="dialog-close" id="btn-close-about">×</button>
-    <h2>Dex Atlas</h2>
-    <p>Dex Atlas ti permette di analizzare qualsiasi Pokémon delle generazioni correnti, calcolando in automatico le debolezze e resistenze di tipo reali, comprese le abilità speciali e le statistiche modificate per le tue battaglie.</p>
-  </dialog>
-
-  <!-- MODALE PER DETTAGLI ABILITA -->
-  <div id="abilityModal" class="ability-modal-overlay" style="display: none;">
-    <div class="ability-modal-box">
-      <button class="dialog-close" id="btn-close-ability">×</button>
-      <p class="eyebrow">ABILITÀ</p>
-      <h3 id="abilityModalTitle">--</h3>
+  <!-- Modal Abilità -->
+  <div id="abilityModal" class="modal-overlay" style="display:none;">
+    <div class="modal-box">
+      <h3 id="abilityModalTitle">Abilità</h3>
       <p id="abilityModalDesc">Caricamento...</p>
+      <button id="btn-close-ability" class="modal-close-btn">Chiudi</button>
     </div>
   </div>
 
-  <!-- SCRIPT -->
-  <script src="app.js"></script>
+  <!-- Modal Info -->
+  <dialog id="about-dialog" class="about-dialog">
+    <h2>Info Pokédex</h2>
+    <p>Applicazione creata per consultare statistiche modificate, debolezze, resistenze e abilità di ogni Pokémon.</p>
+    <button id="btn-close-about" class="modal-close-btn">Chiudi</button>
+  </dialog>
+
+  <script src="app.js?v=1.1"></script>
 </body>
 </html>
