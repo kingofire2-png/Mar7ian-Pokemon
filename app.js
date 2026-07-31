@@ -24,7 +24,6 @@ const num = item => Number(item.url.split('/').filter(Boolean).pop());
 const sprite = (id, name) => `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/home/${id}.png`;
 const tag = type => { const [label,color]=typeMeta[type]; return `<span class="type-badge" style="--type-color:${color}">${label}</span>` };
 
-// Calcolo Statistiche Modificate (+75 HP, +20 altre stats)
 function calcModdedStat(statName, baseStat, name) {
   if (statName === 'hp') {
     if (name === 'shedinja') return 1;
@@ -74,31 +73,46 @@ async function selectPokemon(name,id){
         state.typeRelations.set(x.type.name,d.damage_relations);
       }
     }));
-    renderDetail(p);
+    await renderDetail(p);
   }
   catch {el('detail-card').innerHTML='<div class="detail-empty"><p>Dettaglio non disponibile.</p></div>'}
 }
 
+async function getAbilityDetails(url) {
+  try {
+    const r = await fetch(url);
+    const data = await r.json();
+    
+    // Nome in Italiano
+    const nameItObj = data.names?.find(n => n.language.name === 'it');
+    const nameEnObj = data.names?.find(n => n.language.name === 'en');
+    const nameEn = nameEnObj ? nameEnObj.name : data.name;
+    const nameIt = nameItObj ? nameItObj.name : null;
+
+    // Descrizione
+    const descObj = data.flavor_text_entries?.find(e => e.language.name === 'it') || data.flavor_text_entries?.find(e => e.language.name === 'en');
+    const desc = descObj ? descObj.flavor_text.replace(/[\n\f]/g, ' ') : "Nessuna descrizione disponibile.";
+
+    const fullName = nameIt ? `${nameEn} | ${nameIt}` : nameEn;
+    return { fullName, desc };
+  } catch {
+    return { fullName: 'Abilità', desc: 'Impossibile caricare i dettagli.' };
+  }
+}
+
 async function showAbilityDetail(abilityName, url) {
-  let desc = state.abilityCache.get(abilityName);
-  if(!desc) {
-    try {
-      const r = await fetch(url);
-      const data = await r.json();
-      const itEntry = data.flavor_text_entries.find(e => e.language.name === 'it') || data.flavor_text_entries.find(e => e.language.name === 'en');
-      desc = itEntry ? itEntry.flavor_text.replace(/[\n\f]/g, ' ') : "Nessuna descrizione disponibile.";
-      state.abilityCache.set(abilityName, desc);
-    } catch {
-      desc = "Impossibile caricare la descrizione dell'abilità.";
-    }
+  let cached = state.abilityCache.get(abilityName);
+  if(!cached) {
+    cached = await getAbilityDetails(url);
+    state.abilityCache.set(abilityName, cached);
   }
   
-  el('abilityModalTitle').textContent = pretty(abilityName);
-  el('abilityModalDesc').textContent = desc;
+  el('abilityModalTitle').textContent = cached.fullName;
+  el('abilityModalDesc').textContent = cached.desc;
   el('abilityModal').style.display = 'flex';
 }
 
-function renderDetail(p){
+async function renderDetail(p){
   const types=p.types.sort((a,b)=>a.slot-b.slot).map(x=>x.type.name); 
   
   // 1. DIFESA
@@ -139,12 +153,22 @@ function renderDetail(p){
       </div>`;
   }).join('');
 
-  // 4. ABILITÀ
-  const abilitiesHtml = p.abilities.map(a => `
-    <button class="ability-btn" onclick="showAbilityDetail('${a.ability.name}', '${a.ability.url}')">
-      ${pretty(a.ability.name)} ${a.is_hidden ? '<small>(Nascosta)</small>' : ''}
-    </button>
-  `).join('');
+  // 4. ABILITÀ (Recupero nome Inglese | Italiano)
+  const abilityPromises = p.abilities.map(async a => {
+    let cached = state.abilityCache.get(a.ability.name);
+    if (!cached) {
+      cached = await getAbilityDetails(a.ability.url);
+      state.abilityCache.set(a.ability.name, cached);
+    }
+    return `
+      <button class="ability-btn" onclick="showAbilityDetail('${a.ability.name}', '${a.ability.url}')">
+        ${cached.fullName} ${a.is_hidden ? '<small>(Nascosta)</small>' : ''}
+      </button>
+    `;
+  });
+
+  const abilitiesHtmlArray = await Promise.all(abilityPromises);
+  const abilitiesHtml = abilitiesHtmlArray.join('');
 
   const accent=typeMeta[types[0]][1];
   
