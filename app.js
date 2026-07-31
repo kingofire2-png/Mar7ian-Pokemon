@@ -36,16 +36,16 @@ let currentLimit = 48;
 let sortAscending = true;
 let selectedTypes = [];
 
-// Elementi DOM
+// Elementi DOM (Allineati perfettamente con l'HTML)
 const pokemonListEl = document.getElementById('pokemon-list');
 const countBadgeEl = document.getElementById('pokemon-count');
 const searchInput = document.getElementById('search-input');
-const clearSearchBtn = document.getElementById('clear-search');
-const suggestionsDropdown = document.getElementById('suggestions-dropdown');
-const sortBtn = document.getElementById('sort-button');
-const loadMoreBtn = document.getElementById('load-more-btn');
+const clearSearchBtn = document.getElementById('btn-clear-search');
+const suggestionsDropdown = document.getElementById('suggestions');
+const sortBtn = document.getElementById('btn-sort');
+const loadMoreBtn = document.getElementById('btn-load-more');
 const detailCardEl = document.getElementById('detail-card');
-const resetTypesBtn = document.getElementById('reset-types');
+const resetTypesBtn = document.getElementById('btn-reset-types');
 
 document.addEventListener('DOMContentLoaded', () => {
   renderTypeButtons();
@@ -55,7 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Generazione dinamica dei pulsanti tipo
 function renderTypeButtons() {
-  const container = document.getElementById('type-filters') || document.querySelector('.type-filters-container') || document.querySelector('.type-filters-grid');
+  const container = document.getElementById('type-grid');
   if (!container) return;
 
   container.innerHTML = TYPES_CONFIG.map(type => `
@@ -81,21 +81,18 @@ function renderTypeButtons() {
   });
 }
 
-// Fetch completa da PokéAPI (Inclusi ID 10001+ per Mega Evoluzioni e Forme Speciali)
+// Fetch completa da PokéAPI
 async function fetchPokemonData() {
   try {
-    // Scarica sia la lista base (1-1025) sia le forme extra/Mega (10001+)
     const response = await fetch('https://pokeapi.co/api/v2/pokemon?limit=1300');
     if (!response.ok) throw new Error('Errore nel caricamento da PokéAPI');
     
     const data = await response.json();
     
     allPokemon = data.results.map((p) => {
-      // Estrae l'ID dall'URL dell'API per gestire anche gli ID 10000+ delle Mega Evoluzioni
       const urlParts = p.url.split('/').filter(Boolean);
       const id = parseInt(urlParts[urlParts.length - 1], 10);
       
-      // Formatta il nome leggibile (es. charizard-mega-x -> Charizard Mega X)
       const formattedName = p.name
         .split('-')
         .map(word => word.charAt(0).toUpperCase() + word.slice(1))
@@ -133,10 +130,17 @@ function setupEventListeners() {
     });
   }
 
+  // Chiudi menu quando si clicca fuori
+  document.addEventListener('click', (e) => {
+    if (suggestionsDropdown && !e.target.closest('.search-box')) {
+      suggestionsDropdown.classList.remove('show');
+    }
+  });
+
   if (sortBtn) {
     sortBtn.addEventListener('click', () => {
       sortAscending = !sortAscending;
-      sortBtn.textContent = sortAscending ? 'Ordina: Numero ↓' : 'Ordina: Numero ↑';
+      sortBtn.innerHTML = sortAscending ? 'Ordina: <span>Numero ↓</span>' : 'Ordina: <span>Numero ↑</span>';
       applyFilters();
     });
   }
@@ -161,7 +165,7 @@ function handleSearch(e) {
   const query = e.target.value.trim().toLowerCase();
   if (clearSearchBtn) clearSearchBtn.style.display = query ? 'block' : 'none';
   
-  if (query.length > 1) {
+  if (query.length > 0) {
     const matches = allPokemon.filter(p => 
       p.name.toLowerCase().includes(query) || String(p.id).includes(query)
     ).slice(0, 5);
@@ -181,7 +185,7 @@ function renderSuggestions(matches) {
   
   suggestionsDropdown.innerHTML = matches.map(p => `
     <button class="suggestion" onclick="selectAndScrollTo('${p.rawName}')">
-      <img src="${p.image}" alt="${p.name}" onerror="this.src='${p.image}'">
+      <img src="${p.image}" alt="${p.name}" onerror="this.src='https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${p.id}.png'">
       <span>#${String(p.id).padStart(4, '0')} ${p.name}</span>
     </button>
   `).join('');
@@ -223,7 +227,6 @@ function renderList() {
   pokemonListEl.innerHTML = visible.map(p => {
     const isSelected = selectedPokemon && selectedPokemon.id === p.id;
     const formattedId = '#' + String(p.id).padStart(4, '0');
-    // Immagine fallback sulle sprite normali se l'official artwork per una forma non esiste
     const fallbackImage = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${p.id}.png`;
     
     return `
@@ -287,28 +290,32 @@ function renderDetailCard(p) {
     <span class="ability-btn">${a.name}${a.is_hidden ? ' (Nascosta)' : ''}</span>
   `).join('');
 
-  const maxBarValue = 180;
+  const maxBarValue = 250;
   const statsHtml = (p.stats || []).map(s => {
     const rawName = s.stat ? s.stat.name : s.name;
     const baseVal = s.base_stat !== undefined ? s.base_stat : s.value;
-    const sName = statNamesIt[rawName] || rawName;
-    const fillPercent = Math.min(100, Math.max(10, (baseVal / maxBarValue) * 100));
     
-    let hexColor = '#84cc16'; // Verde (101+)
+    // Calcolo Modificato Livello 50: +75 HP, +20 altre stats
+    const modifiedVal = (rawName === 'hp') ? (baseVal + 75) : (baseVal + 20);
+    
+    const sName = statNamesIt[rawName] || rawName;
+    const fillPercent = Math.min(100, Math.max(10, (modifiedVal / maxBarValue) * 100));
+    
+    let hexColor = '#84cc16'; // Verde (121+)
     let colorClass = 'stat-green';
     
-    if (baseVal <= 50) {
-      hexColor = '#ef4444'; // Rosso (1-50)
+    if (modifiedVal <= 70) {
+      hexColor = '#ef4444'; // Rosso (1-70)
       colorClass = 'stat-red';
-    } else if (baseVal <= 100) {
-      hexColor = '#f97316'; // Arancione (51-100)
+    } else if (modifiedVal <= 120) {
+      hexColor = '#f97316'; // Arancione (71-120)
       colorClass = 'stat-orange';
     }
 
     return `
       <div class="stat-row">
         <span class="stat-label">${sName}</span>
-        <span class="stat-value">${baseVal}</span>
+        <span class="stat-value">${modifiedVal}</span>
         <div class="stat-bar-bg">
           <div class="stat-bar-fill ${colorClass}" style="width: ${fillPercent}%; background-color: ${hexColor} !important;"></div>
         </div>
@@ -327,7 +334,7 @@ function renderDetailCard(p) {
       <div class="weakness-label" style="color: #84cc16; margin-top: 14px;">ABILITÀ (CLICCA PER DETTAGLI)</div>
       <div class="abilities-list">${abilitiesHtml}</div>
       
-      <div class="weakness-label" style="color: #84cc16; margin-top: 16px;">STATISTICHE</div>
+      <div class="weakness-label" style="color: #84cc16; margin-top: 16px;">STATISTICHE (LIV. 50 MOD)</div>
       <div class="stats-container">${statsHtml}</div>
     </div>
   `;
