@@ -9,6 +9,26 @@
   --text-muted: #8e9bb0;
   --accent: #4f46e5;
   --lime: #84cc16;
+
+  /* Colori ufficiali tipi Pokémon */
+  --type-normal: #a8a77a;
+  --type-fire: #ee8130;
+  --type-water: #6390f0;
+  --type-grass: #7ac74c;
+  --type-electric: #f7d02c;
+  --type-ice: #96d9d6;
+  --type-fighting: #c22e28;
+  --type-poison: #a33ea2;
+  --type-ground: #e2bf65;
+  --type-flying: #a98ff3;
+  --type-psychic: #f95587;
+  --type-bug: #a6b91a;
+  --type-rock: #b6a136;
+  --type-ghost: #735797;
+  --type-dragon: #6f35fc;
+  --type-dark: #705746;
+  --type-steel: #b7b7ce;
+  --type-fairy: #d685ad;
 }
 
 * {
@@ -108,6 +128,8 @@ body {
   grid-template-columns: 1fr auto 1.5fr;
   gap: 24px;
   align-items: start;
+  position: relative;
+  z-index: 20;
 }
 
 .search-label, .filter-label {
@@ -127,6 +149,7 @@ body {
   position: absolute;
   left: 12px;
   font-size: 0.9rem;
+  pointer-events: none;
 }
 
 .search-box input {
@@ -146,8 +169,10 @@ body {
   border: none;
   color: var(--text-muted);
   cursor: pointer;
+  font-size: 0.9rem;
 }
 
+/* MENU SUGGERIMENTI RICERCA */
 .suggestions-dropdown {
   position: absolute;
   top: 100%;
@@ -156,28 +181,35 @@ body {
   background: var(--card-bg);
   border: 1px solid var(--border-color);
   border-radius: 8px;
-  margin-top: 4px;
-  z-index: 10;
+  margin-top: 6px;
+  z-index: 9999 !important;
   display: none;
-  max-height: 250px;
+  max-height: 260px;
   overflow-y: auto;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.6);
 }
 
 .suggestions-dropdown.show {
-  display: block;
+  display: block !important;
 }
 
 .suggestion {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
-  padding: 8px 12px;
+  padding: 10px 14px;
   background: transparent;
   border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   color: var(--text-main);
   text-align: left;
   cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.suggestion:last-child {
+  border-bottom: none;
 }
 
 .suggestion:hover {
@@ -185,10 +217,17 @@ body {
 }
 
 .suggestion img {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
 }
 
+.suggestion span {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+/* DIVIDER & TYPE FILTERS */
 .divider {
   width: 1px;
   height: 100%;
@@ -229,13 +268,14 @@ body {
   border-radius: 6px;
   font-size: 0.75rem;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
 }
 
 .type-button.selected {
-  border-color: var(--type-color);
-  background: var(--type-color);
-  color: #fff;
+  border-color: var(--lime);
+  background: var(--lime);
+  color: #000;
+  font-weight: 700;
 }
 
 .type-button.disabled {
@@ -249,6 +289,8 @@ body {
   grid-template-columns: 320px 1fr;
   gap: 32px;
   margin-top: 32px;
+  position: relative;
+  z-index: 10;
 }
 
 .list-header {
@@ -316,7 +358,7 @@ body {
   font-size: 0.85rem;
   font-weight: 600;
   margin-top: 6px;
-  color: var(--text-main) !important; /* Forza il colore bianco ed evita il blu safari/chrome */
+  color: var(--text-main) !important;
   text-decoration: none;
 }
 
@@ -457,43 +499,17 @@ body {
   transition: width 0.3s ease, background-color 0.3s ease;
 }
 
-/* Colori dinamici per le barre con !important per forzare il rendering */
+/* Colori dinamici per le barre con !important */
 .stat-bar-fill.stat-red {
-  background-color: #ef4444 !important; /* Rosso (1 - 50) */
+  background-color: #ef4444 !important;
 }
 
 .stat-bar-fill.stat-orange {
-  background-color: #f97316 !important; /* Arancione (51 - 100) */
+  background-color: #f97316 !important;
 }
 
 .stat-bar-fill.stat-green {
-  background-color: #84cc16 !important; /* Verde (101+) */
-}
-
-.weaknesses {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.weakness {
-  background: var(--bg-dark);
-  border: 1px solid var(--type-color);
-  color: var(--text-main);
-  font-size: 0.7rem;
-  padding: 2px 6px;
-  border-radius: 4px;
-}
-
-.weakness b {
-  color: var(--type-color);
-  margin-left: 4px;
-}
-
-.resistance {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  margin-top: 12px;
+  background-color: #84cc16 !important;
 }
 
 /* MODALI */
@@ -504,7 +520,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 100;
+  z-index: 10000;
 }
 
 .modal-box {
@@ -568,7 +584,7 @@ body {
   }
 
   .hero {
-    padding: 40px 0 20px;
+    padding: 30px 0 20px;
   }
 
   .control-panel {
@@ -586,7 +602,7 @@ body {
     display: flex;
     flex-direction: column;
     gap: 24px;
-    padding-top: 20px;
+    padding-top: 10px;
   }
 
   .detail-section {
