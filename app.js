@@ -3,6 +3,15 @@ const typeMeta = {
   normal:['Normale','#a8a77a'],fire:['Fuoco','#ee8130'],water:['Acqua','#6390f0'],electric:['Elettro','#f7d02c'],grass:['Erba','#7ac74c'],ice:['Ghiaccio','#96d9d6'],fighting:['Lotta','#c22e28'],poison:['Veleno','#a33ea1'],ground:['Terra','#e2bf65'],flying:['Volante','#a98ff3'],psychic:['Psico','#f95587'],bug:['Coleottero','#a6b91a'],rock:['Roccia','#b6a136'],ghost:['Spettro','#735797'],dragon:['Drago','#6f35fc'],dark:['Buio','#705746'],steel:['Acciaio','#b7b7ce'],fairy:['Folletto','#d685ad']
 };
 const namesIt = {bulbasaur:'Bulbasaur',ivysaur:'Ivysaur',venusaur:'Venusaur',charmander:'Charmander',charmeleon:'Charmeleon',charizard:'Charizard',squirtle:'Squirtle',wartortle:'Wartortle',blastoise:'Blastoise',pikachu:'Pikachu',raichu:'Raichu',eevee:'Eevee',vaporeon:'Vaporeon',jolteon:'Jolteon',flareon:'Flareon',espeon:'Espeon',umbreon:'Umbreon',leafeon:'Leafeon',glaceon:'Glaceon',sylveon:'Sylveon',lucario:'Lucario',garchomp:'Garchomp',gardevoir:'Gardevoir',absol:'Absol',rayquaza:'Rayquaza',diancie:'Diancie'};
+const statNamesIt = {
+  hp: 'PS',
+  attack: 'Attacco',
+  defense: 'Difesa',
+  'special-attack': 'Sp. Atk',
+  'special-defense': 'Sp. Def',
+  speed: 'Velocità'
+};
+
 const state = { all:[], displayed:[], selectedTypes:[], page:0, ascending:true, detailCache:new Map(), typeMembers:new Map(), typeRelations:new Map(), active:null };
 const el = id => document.getElementById(id);
 const search = el('pokemonSearch'), list = el('pokemonList'), count = el('resultCount');
@@ -11,17 +20,38 @@ const num = item => Number(item.url.split('/').filter(Boolean).pop());
 const sprite = (id, name) => `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/home/${id}.png`;
 const tag = type => { const [label,color]=typeMeta[type]; return `<span class="type-badge" style="--type-color:${color}">${label}</span>` };
 
+// Calcolo Statistiche Livello 50 - Regole Pokémon Champions (NO IV, Max EV = 32)
+function calcStatLvl50Champions(statName, base, name) {
+  const evMax = 32;
+  const evBoostMax = Math.floor(evMax / 4); // 8 punti bonus stat con 32 EV
+  
+  if (statName === 'hp') {
+    if (name === 'shedinja') return { min: 1, max: 1 };
+    const min = base + 10 + 50;                  // 0 IV, 0 EV
+    const max = base + 10 + 50 + evBoostMax;     // 0 IV, 32 EV
+    return { min, max };
+  } else {
+    const rawMin = base + 5;                     // 0 IV, 0 EV
+    const rawMax = base + 5 + evBoostMax;        // 0 IV, 32 EV
+    
+    const min = Math.floor(rawMin * 0.9);        // Natura -10%
+    const max = Math.floor(rawMax * 1.1);        // Natura +10%
+    return { min, max };
+  }
+}
+
 function renderTypes(){
   el('typeGrid').innerHTML = Object.entries(typeMeta).map(([id,[label,color]]) => `<button class="type-button ${state.selectedTypes.includes(id)?'selected':''} ${state.selectedTypes.length===2&&!state.selectedTypes.includes(id)?'disabled':''}" style="--type-color:${color}" data-type="${id}">${label}</button>`).join('');
 }
+
 async function loadDex(){
   try {
     const r=await fetch(`${API}/pokemon?limit=10000`); const data=await r.json();
-    // PokeAPI returns base Pokémon plus battle-only forms and Mega Evolutions in this endpoint.
     state.all=data.results.map(x=>({...x,id:num(x)})).filter(x=>!x.name.includes('-gmax'));
     state.displayed=state.all; renderList();
   } catch { list.innerHTML='<div class="empty-results">Impossibile raggiungere il Pokedex. Verifica la connessione e ricarica.</div>'; count.textContent='OFFLINE'; }
 }
+
 function filterList(){
   let pool = state.all;
   if(state.selectedTypes.length){
@@ -30,6 +60,7 @@ function filterList(){
   }
   state.displayed=[...pool].sort((a,b)=>state.ascending?a.id-b.id:b.id-a.id); state.page=0; renderList();
 }
+
 function renderList(){
   const amount=Math.min((state.page+1)*24,state.displayed.length); const visible=state.displayed.slice(0,amount);
   count.textContent=`${state.displayed.length.toLocaleString('it-IT')} POKÉMON`;
@@ -37,9 +68,10 @@ function renderList(){
   list.innerHTML=visible.map(p=>`<button class="pokemon-card ${state.active?.name===p.name?'active':''}" data-name="${p.name}" data-id="${p.id}"><span class="pokemon-number">#${String(p.id).padStart(4,'0')}</span><img src="${sprite(p.id,p.name)}" alt="" loading="lazy" onerror="this.style.opacity=.15"><span class="pokemon-name">${pretty(p.name)}</span></button>`).join('');
   el('loadMore').hidden=amount>=state.displayed.length;
 }
+
 async function selectPokemon(name,id){
   state.active={name,id}; renderList();
-  el('detailCard').innerHTML='<div class="detail-empty"><span class="loader"></span><p>Analisi delle debolezze…</p></div>';
+  el('detailCard').innerHTML='<div class="detail-empty"><span class="loader"></span><p>Analisi statistiche e debolezze…</p></div>';
   try {
     let p=state.detailCache.get(name);
     if(!p){const r=await fetch(`${API}/pokemon/${name}`);p=await r.json();state.detailCache.set(name,p)}
@@ -53,25 +85,90 @@ async function selectPokemon(name,id){
   }
   catch {el('detailCard').innerHTML='<div class="detail-empty"><p>Dettaglio non disponibile.</p></div>'}
 }
+
 function renderDetail(p){
-  const types=p.types.sort((a,b)=>a.slot-b.slot).map(x=>x.type.name); const defenses={};
-  for(const t of p.types){ const rel=state.typeRelations.get(t.type.name); for(const x of rel.double_damage_from) defenses[x.name]=(defenses[x.name]||1)*2; for(const x of rel.half_damage_from) defenses[x.name]=(defenses[x.name]||1)*.5; for(const x of rel.no_damage_from) defenses[x.name]=0; }
+  const types=p.types.sort((a,b)=>a.slot-b.slot).map(x=>x.type.name); 
+  
+  // 1. CALCOLO DIFESA (Debolezze subite)
+  const defenses={};
+  for(const t of p.types){ 
+    const rel=state.typeRelations.get(t.type.name); 
+    for(const x of rel.double_damage_from) defenses[x.name]=(defenses[x.name]||1)*2; 
+    for(const x of rel.half_damage_from) defenses[x.name]=(defenses[x.name]||1)*.5; 
+    for(const x of rel.no_damage_from) defenses[x.name]=0; 
+  }
   const weak=Object.entries(defenses).filter(([,v])=>v>1).sort((a,b)=>b[1]-a[1]);
   const resistant=Object.entries(defenses).filter(([,v])=>v<1).map(([t,v])=>`${typeMeta[t][0]} ${v===0?'×0':'½'}`).join(' · ');
+
+  // 2. CALCOLO ATTACCO (Super Efficace STAB)
+  const offense={};
+  for(const t of p.types){
+    const rel=state.typeRelations.get(t.type.name);
+    for(const x of rel.double_damage_to) {
+      offense[x.name] = (offense[x.name] || 1) * 2;
+    }
+  }
+  const superEffective = Object.entries(offense).sort((a,b)=>b[1]-a[1]);
+
+  // 3. ESTRAZIONE STATISTICHE (Champions Lvl 50, EV max 32, NO IV)
+  const statsHtml = p.stats.map(s => {
+    const sName = statNamesIt[s.stat.name] || s.stat.name;
+    const base = s.base_stat;
+    const l50 = calcStatLvl50Champions(s.stat.name, base, p.name);
+    return `
+      <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; margin-bottom:5px;">
+        <span style="color:var(--muted); min-width:65px;">${sName}</span>
+        <strong style="color:var(--ink); font-family:'DM Mono'; font-size:11px;">Base: ${base}</strong>
+        <span style="color:var(--lime); font-family:'DM Mono'; font-size:11px;">Lvl 50: ${l50.min}-${l50.max}</span>
+      </div>`;
+  }).join('');
+
   const accent=typeMeta[types[0]][1];
-  el('detailCard').innerHTML=`<div class="detail-top" style="--accent:${accent}"><span class="detail-index">#${String(p.id).padStart(4,'0')}</span><img src="${p.sprites.other?.home?.front_default||p.sprites.front_default}" alt="${pretty(p.name)}"></div><div class="detail-content"><h2>${pretty(p.name)}</h2><div class="card-types">${types.map(tag).join('')}</div><p class="weakness-label">DEBOLEZZE</p><div class="weaknesses">${weak.length?weak.map(([t,v])=>`<span class="weakness" style="--type-color:${typeMeta[t][1]}">${typeMeta[t][0]}<b>×${v}</b></span>`).join(''):'<span class="weakness">Nessuna</span>'}</div><p class="resistance"><strong>Resistenze:</strong> ${resistant||'nessuna'}</p></div>`;
+  
+  el('detailCard').innerHTML=`
+    <div class="detail-top" style="--accent:${accent}">
+      <span class="detail-index">#${String(p.id).padStart(4,'0')}</span>
+      <img src="${p.sprites.other?.home?.front_default||p.sprites.front_default}" alt="${pretty(p.name)}">
+    </div>
+    <div class="detail-content">
+      <h2>${pretty(p.name)}</h2>
+      <div class="card-types">${types.map(tag).join('')}</div>
+      
+      <!-- STATISTICHE A LIVELLO 50 (FORMATO CHAMPIONS) -->
+      <p class="weakness-label" style="color:var(--lime); border-bottom:1px solid var(--line); padding-bottom:4px; margin-top:10px;">STATISTICHE LVL 50 (EV MAX 32 · NO IV)</p>
+      <div style="margin-bottom:18px; background:rgba(255,255,255,0.03); padding:10px; border-radius:4px; border:1px solid var(--line);">
+        ${statsHtml}
+      </div>
+
+      <!-- DANNI INFLITTI (ATTACCO STAB) -->
+      <p class="weakness-label" style="color:var(--lime)">SUPER EFFICACE CONTRO (STAB)</p>
+      <div class="weaknesses" style="margin-bottom:18px;">
+        ${superEffective.length ? superEffective.map(([t,v])=>`<span class="weakness" style="--type-color:${typeMeta[t][1]}">${typeMeta[t][0]}<b>×${v}</b></span>`).join('') : '<span class="weakness">Nessun tipo</span>'}
+      </div>
+
+      <!-- DANNI SUBITI (DIFESA) -->
+      <p class="weakness-label">DEBOLEZZE (DANNI SUBITI)</p>
+      <div class="weaknesses">
+        ${weak.length?weak.map(([t,v])=>`<span class="weakness" style="--type-color:${typeMeta[t][1]}">${typeMeta[t][0]}<b>×${v}</b></span>`).join(''):'<span class="weakness">Nessuna</span>'}
+      </div>
+      
+      <p class="resistance"><strong>Resistenze:</strong> ${resistant||'nessuna'}</p>
+    </div>`;
 }
+
 async function chooseType(type){
   if(state.selectedTypes.includes(type)) state.selectedTypes=state.selectedTypes.filter(x=>x!==type);
   else { if(state.selectedTypes.length===2) return; state.selectedTypes.push(type); if(!state.typeMembers.has(type)){ const r=await fetch(`${API}/type/${type}`); const d=await r.json(); state.typeMembers.set(type,new Set(d.pokemon.map(x=>x.pokemon.name))); state.typeRelations.set(type,d.damage_relations); } }
   renderTypes();filterList();
 }
+
 function showSuggestions(value){
   const q=value.trim().toLowerCase().replace('#',''); if(!q){el('suggestions').classList.remove('show');return}
   const found=state.all.filter(p=>p.name.includes(q)||String(p.id).startsWith(q)||pretty(p.name).toLowerCase().includes(q)).slice(0,7);
   el('suggestions').innerHTML=found.map(p=>`<button class="suggestion" data-name="${p.name}" data-id="${p.id}" role="option"><img src="${sprite(p.id,p.name)}" alt=""><span>${pretty(p.name)}<br><small>#${String(p.id).padStart(4,'0')}</small></span></button>`).join('')||'<div class="suggestion">Nessun risultato</div>';
   el('suggestions').classList.add('show');
 }
+
 el('typeGrid').addEventListener('click',e=>{const b=e.target.closest('[data-type]');if(b&&!b.classList.contains('disabled'))chooseType(b.dataset.type)});
 list.addEventListener('click',e=>{const b=e.target.closest('.pokemon-card');if(b)selectPokemon(b.dataset.name,b.dataset.id)});
 el('suggestions').addEventListener('click',e=>{const b=e.target.closest('[data-name]');if(b){search.value=pretty(b.dataset.name);el('suggestions').classList.remove('show');selectPokemon(b.dataset.name,b.dataset.id)}});
