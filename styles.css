@@ -288,6 +288,7 @@ body {
   align-items: center;
   cursor: pointer;
   transition: transform 0.15s, border-color 0.15s;
+  color: var(--text-main);
 }
 
 .pokemon-card:hover {
@@ -315,6 +316,8 @@ body {
   font-size: 0.85rem;
   font-weight: 600;
   margin-top: 6px;
+  color: var(--text-main) !important; /* Forza il colore bianco ed evita il blu safari/chrome */
+  text-decoration: none;
 }
 
 .load-more-button {
@@ -376,6 +379,7 @@ body {
 .detail-content h2 {
   font-size: 1.4rem;
   margin-bottom: 8px;
+  color: var(--text-main);
 }
 
 .card-types {
@@ -438,6 +442,7 @@ body {
 
 .stat-value {
   font-weight: 700;
+  color: var(--text-main);
 }
 
 .stat-bar-bg {
@@ -448,8 +453,21 @@ body {
 }
 
 .stat-bar-fill {
-  background: var(--lime);
   height: 100%;
+  transition: width 0.3s ease, background-color 0.3s ease;
+}
+
+/* Colori dinamici per le barre con !important per forzare il rendering */
+.stat-bar-fill.stat-red {
+  background-color: #ef4444 !important; /* Rosso (1 - 50) */
+}
+
+.stat-bar-fill.stat-orange {
+  background-color: #f97316 !important; /* Arancione (51 - 100) */
+}
+
+.stat-bar-fill.stat-green {
+  background-color: #84cc16 !important; /* Verde (101+) */
 }
 
 .weaknesses {
@@ -500,6 +518,7 @@ body {
 
 .modal-box h3 {
   margin-bottom: 12px;
+  color: var(--text-main);
 }
 
 .modal-box p {
