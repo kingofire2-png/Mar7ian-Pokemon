@@ -1,71 +1,80 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="it">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#10141d" />
-    <title>Dex Atlas — Pokedex</title>
-    <link rel="preconnect" href="https://pokeapi.co" />
-    <link rel="stylesheet" href="styles.css?v=20260730-2" />
-  </head>
-  <body>
-    <div class="noise"></div>
-    <main class="app-shell">
-      <header class="topbar">
-        <a class="brand" href="#" aria-label="Dex Atlas, torna all'inizio">
-          <span class="brand-mark"><i></i></span>
-          <span>DEX <b>ATLAS</b></span>
-        </a>
-        <div class="generation-pill"><span></span> National Dex · Z-A era</div>
-        <button class="about-button" id="aboutButton">Come funziona <span>↗</span></button>
-      </header>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dex Atlas — Pokedex</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="noise"></div>
+  
+  <div class="app-shell">
+    <!-- TOPBAR -->
+    <header class="topbar">
+      <a href="#" class="brand">
+        <div class="brand-mark"><i></i></div>
+        <b>DEX ATLAS</b>
+      </a>
+      <div class="generation-pill"><span></span>National Dex · Z-A era</div>
+      <button class="about-button" id="btn-about">Come funziona <span>↗</span></button>
+    </header>
 
-      <section class="hero">
-        <p class="eyebrow">POKEDEX · ENCICLOPEDIA DI TUTTE LE GENERAZIONI</p>
-        <h1><em>Pokedex</em></h1>
-        <p class="intro">Cerca un Pokémon per vedere le debolezze reali, oppure combina fino a due tipi per trovarne uno da catturare.</p>
+    <!-- HERO -->
+    <section class="hero">
+      <p class="eyebrow">POKEDEX · ENCICLOPEDIA DI TUTTE LE GENERAZIONI</p>
+      <h1>Pokedex</h1>
+      <p class="intro">Cerca un Pokémon per vedere le debolezze reali, oppure combina fino a due tipi per trovarne uno da catturare.</p>
+    </section>
+
+    <!-- CONTROLLI / FILTRI -->
+    <section class="control-panel">
+      <div class="search-wrap">
+        <label for="search-input">Cerca per nome o numero</label>
+        <div class="search-field">
+          <span class="search-icon">⌕</span>
+          <input type="text" id="search-input" placeholder="Es. Charizard, Lucario o #0006" autocomplete="off" />
+          <button id="btn-clear-search">×</button>
+        </div>
+        <div id="suggestions" class="suggestions"></div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="type-filter">
+        <div class="filter-head">
+          <label>Filtra per tipo</label>
+          <button id="btn-reset-types">Reset</button>
+        </div>
+        <p>Scegli fino a <strong>2 tipi</strong></p>
+        <div id="type-grid" class="type-grid"></div>
+      </div>
+    </section>
+
+    <!-- GRIGLIA POKÉMON E DETTAGLIO -->
+    <main class="content-grid">
+      <!-- COLONNA SINISTRA: LISTA POKEMON -->
+      <section class="pokemon-section">
+        <div class="section-title">
+          <span id="pokemon-count">0 POKÉMON</span>
+          <div class="rule"></div>
+          <button id="btn-sort" class="sort-button">Ordina: <span>Numero ↓</span></button>
+        </div>
+        
+        <div id="pokemon-list" class="pokemon-list"></div>
+        <button id="btn-load-more" class="load-more" style="display: none;">Carica altri</button>
       </section>
 
-      <section class="control-panel" aria-label="Ricerca e filtri">
-        <div class="search-wrap">
-          <label for="pokemonSearch">Cerca per nome o numero</label>
-          <div class="search-field">
-            <span class="search-icon">⌕</span>
-            <input id="pokemonSearch" autocomplete="off" placeholder="Es. Charizard, Lucario o #025" />
-            <button id="clearSearch" aria-label="Svuota ricerca">×</button>
-          </div>
-          <div class="suggestions" id="suggestions" role="listbox"></div>
-        </div>
-        <div class="divider"></div>
-        <div class="type-filter">
-          <div class="filter-head"><label>Filtra per tipo</label><button id="resetTypes">Reset</button></div>
-          <p>Scegli fino a <b>2 tipi</b></p>
-          <div class="type-grid" id="typeGrid"></div>
-        </div>
-      </section>
-
-      <section class="content-grid">
-        <div class="results-pane">
-          <div class="section-title"><span id="resultCount">CARICAMENTO</span><span class="rule"></span><button class="sort-button" id="sortButton">Ordina: Numero <span>↓</span></button></div>
-          <div class="pokemon-list" id="pokemonList" aria-live="polite"></div>
-          <button class="load-more" id="loadMore">Mostra altri Pokémon</button>
-        </div>
-
-        <aside class="detail-card" id="detailCard" aria-live="polite">
+      <!-- COLONNA DESTRA: DETTAGLIO POKÉMON SELEZIONATO -->
+      <aside class="detail-section">
+        <div id="detail-card" class="detail-card">
           <div class="detail-empty">
-            <div class="radar"><i></i><i></i><i></i></div>
-            <p>Seleziona un Pokémon</p>
-            <small>Le sue debolezze appariranno qui.</small>
+            <div class="radar"><i></i></div>
+            <p>Seleziona un Pokémon per vederne le informazioni</p>
           </div>
-        </aside>
-      </section>
+        </div>
+      </aside>
     </main>
-    <dialog id="aboutDialog">
-      <button class="dialog-close" id="closeAbout" aria-label="Chiudi">×</button>
-      <p class="eyebrow">DEX ATLAS</p>
-      <h2>Un Pokedex pensato per la strategia.</h2>
-      <p>La ricerca consulta il National Dex e include le forme speciali disponibili nell’archivio, comprese le Mega Evoluzioni. Scegliendo uno o due tipi il risultato mostra solo i Pokémon che li possiedono entrambi.</p>
-    </dialog>
-    <script src="app.js?v=20260730-2"></script>
-  </body>
+  </div>
+</body>
 </html>
