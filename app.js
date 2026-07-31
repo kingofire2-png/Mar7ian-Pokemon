@@ -3,7 +3,7 @@ const statNamesIt = {
   'hp': 'PS',
   'attack': 'Attacco',
   'defense': 'Difesa',
-  'special-attack': 'Sp. Atk',
+  'special-attack': 'Sp. Atk
   'special-defense': 'Sp. Def',
   'speed': 'Velocità'
 };
