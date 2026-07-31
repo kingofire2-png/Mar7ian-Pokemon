@@ -14,7 +14,11 @@ const statNamesIt = {
 
 const state = { all:[], displayed:[], selectedTypes:[], page:0, ascending:true, detailCache:new Map(), abilityCache:new Map(), typeMembers:new Map(), typeRelations:new Map(), active:null };
 const el = id => document.getElementById(id);
-const search = el('pokemonSearch'), list = el('pokemonList'), count = el('resultCount');
+
+const search = el('search-input'), 
+      list = el('pokemon-list'), 
+      count = el('pokemon-count');
+
 const pretty = name => namesIt[name] || name.replaceAll('-', ' ').replace(/\b\w/g, c=>c.toUpperCase());
 const num = item => Number(item.url.split('/').filter(Boolean).pop());
 const sprite = (id, name) => `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/home/${id}.png`;
@@ -30,7 +34,7 @@ function calcModdedStat(statName, baseStat, name) {
 }
 
 function renderTypes(){
-  el('typeGrid').innerHTML = Object.entries(typeMeta).map(([id,[label,color]]) => `<button class="type-button ${state.selectedTypes.includes(id)?'selected':''} ${state.selectedTypes.length===2&&!state.selectedTypes.includes(id)?'disabled':''}" style="--type-color:${color}" data-type="${id}">${label}</button>`).join('');
+  el('type-grid').innerHTML = Object.entries(typeMeta).map(([id,[label,color]]) => `<button class="type-button ${state.selectedTypes.includes(id)?'selected':''} ${state.selectedTypes.length===2&&!state.selectedTypes.includes(id)?'disabled':''}" style="--type-color:${color}" data-type="${id}">${label}</button>`).join('');
 }
 
 async function loadDex(){
@@ -53,14 +57,14 @@ function filterList(){
 function renderList(){
   const amount=Math.min((state.page+1)*24,state.displayed.length); const visible=state.displayed.slice(0,amount);
   count.textContent=`${state.displayed.length.toLocaleString('it-IT')} POKÉMON`;
-  if(!visible.length){list.innerHTML='<div class="empty-results">Nessun Pokémon con questa combinazione di tipi.</div>';el('loadMore').hidden=true;return}
+  if(!visible.length){list.innerHTML='<div class="empty-results">Nessun Pokémon con questa combinazione di tipi.</div>';el('btn-load-more').style.display='none';return}
   list.innerHTML=visible.map(p=>`<button class="pokemon-card ${state.active?.name===p.name?'active':''}" data-name="${p.name}" data-id="${p.id}"><span class="pokemon-number">#${String(p.id).padStart(4,'0')}</span><img src="${sprite(p.id,p.name)}" alt="" loading="lazy" onerror="this.style.opacity=.15"><span class="pokemon-name">${pretty(p.name)}</span></button>`).join('');
-  el('loadMore').hidden=amount>=state.displayed.length;
+  el('btn-load-more').style.display = amount >= state.displayed.length ? 'none' : 'block';
 }
 
 async function selectPokemon(name,id){
   state.active={name,id}; renderList();
-  el('detailCard').innerHTML='<div class="detail-empty"><span class="loader"></span><p>Analisi statistiche e debolezze…</p></div>';
+  el('detail-card').innerHTML='<div class="detail-empty"><span class="loader"></span><p>Analisi statistiche e debolezze…</p></div>';
   try {
     let p=state.detailCache.get(name);
     if(!p){const r=await fetch(`${API}/pokemon/${name}`);p=await r.json();state.detailCache.set(name,p)}
@@ -72,7 +76,7 @@ async function selectPokemon(name,id){
     }));
     renderDetail(p);
   }
-  catch {el('detailCard').innerHTML='<div class="detail-empty"><p>Dettaglio non disponibile.</p></div>'}
+  catch {el('detail-card').innerHTML='<div class="detail-empty"><p>Dettaglio non disponibile.</p></div>'}
 }
 
 async function showAbilityDetail(abilityName, url) {
@@ -89,28 +93,15 @@ async function showAbilityDetail(abilityName, url) {
     }
   }
   
-  let modal = el('abilityModal');
-  if(!modal) {
-    modal = document.createElement('div');
-    modal.id = 'abilityModal';
-    modal.className = 'ability-modal';
-    document.body.appendChild(modal);
-  }
-  modal.innerHTML = `
-    <div class="ability-modal-content">
-      <button class="ability-modal-close" onclick="document.getElementById('abilityModal').classList.remove('show')">×</button>
-      <p class="eyebrow">ABILITÀ</p>
-      <h3>${pretty(abilityName)}</h3>
-      <p>${desc}</p>
-    </div>
-  `;
-  modal.classList.add('show');
+  el('abilityModalTitle').textContent = pretty(abilityName);
+  el('abilityModalDesc').textContent = desc;
+  el('abilityModal').style.display = 'flex';
 }
 
 function renderDetail(p){
   const types=p.types.sort((a,b)=>a.slot-b.slot).map(x=>x.type.name); 
   
-  // 1. DIFESA (Debolezze subite - x4 consentito)
+  // 1. DIFESA
   const defenses={};
   for(const t of p.types){ 
     const rel=state.typeRelations.get(t.type.name); 
@@ -121,7 +112,7 @@ function renderDetail(p){
   const weak=Object.entries(defenses).filter(([,v])=>v>1).sort((a,b)=>b[1]-a[1]);
   const resistant=Object.entries(defenses).filter(([,v])=>v<1).map(([t,v])=>`${typeMeta[t][0]} ${v===0?'×0':'½'}`).join(' · ');
 
-  // 2. ATTACCO (Solo x2, x4 rimossi)
+  // 2. ATTACCO
   const offenseSet = new Set();
   for(const t of p.types){
     const rel=state.typeRelations.get(t.type.name);
@@ -131,20 +122,19 @@ function renderDetail(p){
   }
   const superEffective = Array.from(offenseSet);
 
-  // 3. STATISTICHE CON BARRA GRAPH (Senza EV32)
-  const maxBarValue = 180; // Valore massimo per il riempimento della barra
+  // 3. STATISTICHE
+  const maxBarValue = 180;
   const statsHtml = p.stats.map(s => {
     const sName = statNamesIt[s.stat.name] || s.stat.name;
     const moddedVal = calcModdedStat(s.stat.name, s.base_stat, p.name);
     const fillPercent = Math.min(100, Math.max(12, (moddedVal / maxBarValue) * 100));
-    const isTop = moddedVal >= 120; // Evidenzia in verde le stat più pericolose
     
     return `
       <div class="stat-row">
         <span class="stat-label">${sName}</span>
-        <span class="stat-val">${moddedVal}</span>
+        <span class="stat-value">${moddedVal}</span>
         <div class="stat-bar-bg">
-          <div class="stat-bar-fill ${isTop ? 'high' : ''}" style="width: ${fillPercent}%;"></div>
+          <div class="stat-bar-fill" style="width: ${fillPercent}%;"></div>
         </div>
       </div>`;
   }).join('');
@@ -158,7 +148,7 @@ function renderDetail(p){
 
   const accent=typeMeta[types[0]][1];
   
-  el('detailCard').innerHTML=`
+  el('detail-card').innerHTML=`
     <div class="detail-top" style="--accent:${accent}">
       <span class="detail-index">#${String(p.id).padStart(4,'0')}</span>
       <img src="${p.sprites.other?.home?.front_default||p.sprites.front_default}" alt="${pretty(p.name)}">
@@ -167,23 +157,19 @@ function renderDetail(p){
       <h2>${pretty(p.name)}</h2>
       <div class="card-types">${types.map(tag).join('')}</div>
       
-      <!-- ABILITÀ -->
       <p class="weakness-label" style="color:var(--lime); margin-top:10px;">ABILITÀ (CLICCA PER DETTAGLI)</p>
-      <div class="abilities-wrap">${abilitiesHtml}</div>
+      <div class="abilities-list">${abilitiesHtml}</div>
 
-      <!-- STATISTICHE BASE MODIFICATE -->
       <p class="weakness-label" style="color:var(--lime); border-bottom:1px solid var(--line); padding-bottom:4px; margin-top:16px;">STATISTICHE (+75 HP / +20 ATK-DEF-SPE)</p>
-      <div class="stats-box">
+      <div class="stats-container">
         ${statsHtml}
       </div>
 
-      <!-- DANNI INFLITTI (ATTACCO STAB - SOLO X2) -->
-      <p class="weakness-label" style="color:var(--lime)">SUPER EFFICACE CONTRO (STAB)</p>
+      <p class="weakness-label" style="color:var(--lime); margin-top:16px;">SUPER EFFICACE CONTRO (STAB)</p>
       <div class="weaknesses" style="margin-bottom:18px;">
         ${superEffective.length ? superEffective.map(t=>`<span class="weakness" style="--type-color:${typeMeta[t][1]}">${typeMeta[t][0]}<b>×2</b></span>`).join('') : '<span class="weakness">Nessun tipo</span>'}
       </div>
 
-      <!-- DANNI SUBITI (DIFESA - ANCHE X4) -->
       <p class="weakness-label">DEBOLEZZE (DANNI SUBITI)</p>
       <div class="weaknesses">
         ${weak.length?weak.map(([t,v])=>`<span class="weakness" style="--type-color:${typeMeta[t][1]}">${typeMeta[t][0]}<b>×${v}</b></span>`).join(''):'<span class="weakness">Nessuna</span>'}
@@ -206,13 +192,18 @@ function showSuggestions(value){
   el('suggestions').classList.add('show');
 }
 
-el('typeGrid').addEventListener('click',e=>{const b=e.target.closest('[data-type]');if(b&&!b.classList.contains('disabled'))chooseType(b.dataset.type)});
+// EVENT LISTENERS
+el('type-grid').addEventListener('click',e=>{const b=e.target.closest('[data-type]');if(b&&!b.classList.contains('disabled'))chooseType(b.dataset.type)});
 list.addEventListener('click',e=>{const b=e.target.closest('.pokemon-card');if(b)selectPokemon(b.dataset.name,b.dataset.id)});
 el('suggestions').addEventListener('click',e=>{const b=e.target.closest('[data-name]');if(b){search.value=pretty(b.dataset.name);el('suggestions').classList.remove('show');selectPokemon(b.dataset.name,b.dataset.id)}});
 search.addEventListener('input',e=>showSuggestions(e.target.value));
-el('clearSearch').addEventListener('click',()=>{search.value='';showSuggestions('');search.focus()});
-el('resetTypes').addEventListener('click',()=>{state.selectedTypes=[];renderTypes();filterList()});
-el('loadMore').addEventListener('click',()=>{state.page++;renderList()});
-el('sortButton').addEventListener('click',()=>{state.ascending=!state.ascending;el('sortButton').innerHTML=`Ordina: Numero <span>${state.ascending?'↓':'↑'}</span>`;filterList()});
-el('aboutButton').addEventListener('click',()=>el('aboutDialog').showModal());el('closeAbout').addEventListener('click',()=>el('aboutDialog').close());
-renderTypes();loadDex();
+el('btn-clear-search').addEventListener('click',()=>{search.value='';showSuggestions('');search.focus()});
+el('btn-reset-types').addEventListener('click',()=>{state.selectedTypes=[];renderTypes();filterList()});
+el('btn-load-more').addEventListener('click',()=>{state.page++;renderList()});
+el('btn-sort').addEventListener('click',()=>{state.ascending=!state.ascending;el('btn-sort').innerHTML=`Ordina: <span>Numero ${state.ascending?'↓':'↑'}</span>`;filterList()});
+el('btn-about').addEventListener('click',()=>el('about-dialog').showModal());
+el('btn-close-about').addEventListener('click',()=>el('about-dialog').close());
+el('btn-close-ability').addEventListener('click',()=>el('abilityModal').style.display='none');
+
+renderTypes();
+loadDex();
