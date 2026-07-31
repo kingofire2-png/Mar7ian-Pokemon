@@ -1,233 +1,288 @@
-const API = 'https://pokeapi.co/api/v2';
-const typeMeta = {
-  normal:['Normale','#a8a77a'],fire:['Fuoco','#ee8130'],water:['Acqua','#6390f0'],electric:['Elettro','#f7d02c'],grass:['Erba','#7ac74c'],ice:['Ghiaccio','#96d9d6'],fighting:['Lotta','#c22e28'],poison:['Veleno','#a33ea1'],ground:['Terra','#e2bf65'],flying:['Volante','#a98ff3'],psychic:['Psico','#f95587'],bug:['Coleottero','#a6b91a'],rock:['Roccia','#b6a136'],ghost:['Spettro','#735797'],dragon:['Drago','#6f35fc'],dark:['Buio','#705746'],steel:['Acciaio','#b7b7ce'],fairy:['Folletto','#d685ad']
-};
-const namesIt = {bulbasaur:'Bulbasaur',ivysaur:'Ivysaur',venusaur:'Venusaur',charmander:'Charmander',charmeleon:'Charmeleon',charizard:'Charizard',squirtle:'Squirtle',wartortle:'Wartortle',blastoise:'Blastoise',pikachu:'Pikachu',raichu:'Raichu',eevee:'Eevee',vaporeon:'Vaporeon',jolteon:'Jolteon',flareon:'Flareon',espeon:'Espeon',umbreon:'Umbreon',leafeon:'Leafeon',glaceon:'Glaceon',sylveon:'Sylveon',lucario:'Lucario',garchomp:'Garchomp',gardevoir:'Gardevoir',absol:'Absol',rayquaza:'Rayquaza',diancie:'Diancie'};
+// Nomi in italiano delle statistiche
 const statNamesIt = {
-  hp: 'PS',
-  attack: 'Attacco',
-  defense: 'Difesa',
+  'hp': 'PS',
+  'attack': 'Attacco',
+  'defense': 'Difesa',
   'special-attack': 'Sp. Atk',
   'special-defense': 'Sp. Def',
-  speed: 'Velocità'
+  'speed': 'Velocità'
 };
 
-const state = { all:[], displayed:[], selectedTypes:[], page:0, ascending:true, detailCache:new Map(), abilityCache:new Map(), typeMembers:new Map(), typeRelations:new Map(), active:null };
-const el = id => document.getElementById(id);
-
-const search = el('search-input'), 
-      list = el('pokemon-list'), 
-      count = el('pokemon-count');
-
-const pretty = name => namesIt[name] || name.replaceAll('-', ' ').replace(/\b\w/g, c=>c.toUpperCase());
-const num = item => Number(item.url.split('/').filter(Boolean).pop());
-const sprite = (id, name) => `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/home/${id}.png`;
-const tag = type => { const [label,color]=typeMeta[type]; return `<span class="type-badge" style="--type-color:${color}">${label}</span>` };
-
-function calcModdedStat(statName, baseStat, name) {
-  if (statName === 'hp') {
-    if (name === 'shedinja') return 1;
-    return baseStat + 75;
-  }
-  return baseStat + 20;
+// Modificatori per calcolo statistiche personalizzate (se presenti)
+function calcModdedStat(statName, baseVal, pokemonName) {
+  return baseVal;
 }
 
-function renderTypes(){
-  el('type-grid').innerHTML = Object.entries(typeMeta).map(([id,[label,color]]) => `<button class="type-button ${state.selectedTypes.includes(id)?'selected':''} ${state.selectedTypes.length===2&&!state.selectedTypes.includes(id)?'disabled':''}" style="--type-color:${color}" data-type="${id}">${label}</button>`).join('');
-}
+// Stato dell'applicazione
+let allPokemon = [];
+let filteredPokemon = [];
+let selectedPokemon = null;
+let currentLimit = 48;
+let sortAscending = true;
+let selectedTypes = [];
 
-async function loadDex(){
+// Elementi DOM
+const pokemonListEl = document.getElementById('pokemon-list');
+const countBadgeEl = document.getElementById('pokemon-count');
+const searchInput = document.getElementById('search-input');
+const clearSearchBtn = document.getElementById('clear-search');
+const suggestionsDropdown = document.getElementById('suggestions-dropdown');
+const sortBtn = document.getElementById('sort-button');
+const loadMoreBtn = document.getElementById('load-more-btn');
+const detailCardEl = document.getElementById('detail-card');
+const resetTypesBtn = document.getElementById('reset-types');
+const typeButtons = document.querySelectorAll('.type-button');
+
+// Inizializzazione
+document.addEventListener('DOMContentLoaded', () => {
+  fetchPokemonData();
+  setupEventListeners();
+});
+
+// Fetch dati Pokémon
+async function fetchPokemonData() {
   try {
-    const r=await fetch(`${API}/pokemon?limit=10000`); const data=await r.json();
-    state.all=data.results.map(x=>({...x,id:num(x)})).filter(x=>!x.name.includes('-gmax'));
-    state.displayed=state.all; renderList();
-  } catch { list.innerHTML='<div class="empty-results">Impossibile raggiungere il Pokedex. Verifica la connessione e ricarica.</div>'; count.textContent='OFFLINE'; }
-}
-
-function filterList(){
-  let pool = state.all;
-  if(state.selectedTypes.length){
-    const sets=state.selectedTypes.map(t=>state.typeMembers.get(t)||new Set());
-    pool=pool.filter(p=>sets.every(s=>s.has(p.name)));
-  }
-  state.displayed=[...pool].sort((a,b)=>state.ascending?a.id-b.id:b.id-a.id); state.page=0; renderList();
-}
-
-function renderList(){
-  const amount=Math.min((state.page+1)*24,state.displayed.length); const visible=state.displayed.slice(0,amount);
-  count.textContent=`${state.displayed.length.toLocaleString('it-IT')} POKÉMON`;
-  if(!visible.length){list.innerHTML='<div class="empty-results">Nessun Pokémon con questa combinazione di tipi.</div>';el('btn-load-more').style.display='none';return}
-  list.innerHTML=visible.map(p=>`<button class="pokemon-card ${state.active?.name===p.name?'active':''}" data-name="${p.name}" data-id="${p.id}"><span class="pokemon-number">#${String(p.id).padStart(4,'0')}</span><img src="${sprite(p.id,p.name)}" alt="" loading="lazy" onerror="this.style.opacity=.15"><span class="pokemon-name">${pretty(p.name)}</span></button>`).join('');
-  el('btn-load-more').style.display = amount >= state.displayed.length ? 'none' : 'block';
-}
-
-async function selectPokemon(name,id){
-  state.active={name,id}; renderList();
-  el('detail-card').innerHTML='<div class="detail-empty"><span class="loader"></span><p>Analisi statistiche e debolezze…</p></div>';
-  try {
-    let p=state.detailCache.get(name);
-    if(!p){const r=await fetch(`${API}/pokemon/${name}`);p=await r.json();state.detailCache.set(name,p)}
-    await Promise.all(p.types.map(async x=>{
-      if(!state.typeRelations.has(x.type.name)){
-        const r=await fetch(`${API}/type/${x.type.name}`); const d=await r.json();
-        state.typeRelations.set(x.type.name,d.damage_relations);
-      }
-    }));
-    await renderDetail(p);
-  }
-  catch {el('detail-card').innerHTML='<div class="detail-empty"><p>Dettaglio non disponibile.</p></div>'}
-}
-
-async function getAbilityDetails(url) {
-  try {
-    const r = await fetch(url);
-    const data = await r.json();
-    
-    // Nome in Italiano
-    const nameItObj = data.names?.find(n => n.language.name === 'it');
-    const nameEnObj = data.names?.find(n => n.language.name === 'en');
-    const nameEn = nameEnObj ? nameEnObj.name : data.name;
-    const nameIt = nameItObj ? nameItObj.name : null;
-
-    // Descrizione
-    const descObj = data.flavor_text_entries?.find(e => e.language.name === 'it') || data.flavor_text_entries?.find(e => e.language.name === 'en');
-    const desc = descObj ? descObj.flavor_text.replace(/[\n\f]/g, ' ') : "Nessuna descrizione disponibile.";
-
-    const fullName = nameIt ? `${nameEn} | ${nameIt}` : nameEn;
-    return { fullName, desc };
-  } catch {
-    return { fullName: 'Abilità', desc: 'Impossibile caricare i dettagli.' };
-  }
-}
-
-async function showAbilityDetail(abilityName, url) {
-  let cached = state.abilityCache.get(abilityName);
-  if(!cached) {
-    cached = await getAbilityDetails(url);
-    state.abilityCache.set(abilityName, cached);
-  }
-  
-  el('abilityModalTitle').textContent = cached.fullName;
-  el('abilityModalDesc').textContent = cached.desc;
-  el('abilityModal').style.display = 'flex';
-}
-
-async function renderDetail(p){
-  const types=p.types.sort((a,b)=>a.slot-b.slot).map(x=>x.type.name); 
-  
-  // 1. DIFESA
-  const defenses={};
-  for(const t of p.types){ 
-    const rel=state.typeRelations.get(t.type.name); 
-    for(const x of rel.double_damage_from) defenses[x.name]=(defenses[x.name]||1)*2; 
-    for(const x of rel.half_damage_from) defenses[x.name]=(defenses[x.name]||1)*.5; 
-    for(const x of rel.no_damage_from) defenses[x.name]=0; 
-  }
-  const weak=Object.entries(defenses).filter(([,v])=>v>1).sort((a,b)=>b[1]-a[1]);
-  const resistant=Object.entries(defenses).filter(([,v])=>v<1).map(([t,v])=>`${typeMeta[t][0]} ${v===0?'×0':'½'}`).join(' · ');
-
-  // 2. ATTACCO
-  const offenseSet = new Set();
-  for(const t of p.types){
-    const rel=state.typeRelations.get(t.type.name);
-    for(const x of rel.double_damage_to) {
-      offenseSet.add(x.name);
+    const response = await fetch('./pokemon_data.json');
+    if (!response.ok) {
+      throw new Error('Impossibile caricare pokemon_data.json');
     }
+    allPokemon = await response.json();
+    filteredPokemon = [...allPokemon];
+    renderList();
+    if (allPokemon.length > 0) {
+      selectPokemon(allPokemon[5] || allPokemon[0]); // Seleziona Charizard (#6) o il primo di default
+    }
+  } catch (err) {
+    console.error('Errore nel caricamento dei dati Pokémon:', err);
   }
-  const superEffective = Array.from(offenseSet);
+}
 
-  // 3. STATISTICHE
+// Setup Event Listeners
+function setupEventListeners() {
+  if (searchInput) {
+    searchInput.addEventListener('input', handleSearch);
+  }
+  
+  if (clearSearchBtn) {
+    clearSearchBtn.addEventListener('click', () => {
+      searchInput.value = '';
+      clearSearchBtn.style.display = 'none';
+      if (suggestionsDropdown) suggestionsDropdown.classList.remove('show');
+      applyFilters();
+    });
+  }
+
+  if (sortBtn) {
+    sortBtn.addEventListener('click', () => {
+      sortAscending = !sortAscending;
+      sortBtn.textContent = sortAscending ? 'Ordina: Numero ↓' : 'Ordina: Numero ↑';
+      applyFilters();
+    });
+  }
+
+  if (loadMoreBtn) {
+    loadMoreBtn.addEventListener('click', () => {
+      currentLimit += 48;
+      renderList();
+    });
+  }
+
+  if (resetTypesBtn) {
+    resetTypesBtn.addEventListener('click', () => {
+      selectedTypes = [];
+      typeButtons.forEach(btn => btn.classList.remove('selected'));
+      applyFilters();
+    });
+  }
+
+  typeButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const type = btn.getAttribute('data-type');
+      if (selectedTypes.includes(type)) {
+        selectedTypes = selectedTypes.filter(t => t !== type);
+        btn.classList.remove('selected');
+      } else {
+        selectedTypes.push(type);
+        btn.classList.add('selected');
+      }
+      applyFilters();
+    });
+  });
+}
+
+// Gestione Ricerca
+function handleSearch(e) {
+  const query = e.target.value.trim().toLowerCase();
+  if (clearSearchBtn) {
+    clearSearchBtn.style.display = query ? 'block' : 'none';
+  }
+  
+  if (query.length > 1) {
+    const matches = allPokemon.filter(p => 
+      p.name.toLowerCase().includes(query) || 
+      String(p.id).includes(query)
+    ).slice(0, 5);
+    
+    renderSuggestions(matches);
+  } else {
+    if (suggestionsDropdown) suggestionsDropdown.classList.remove('show');
+  }
+  
+  applyFilters();
+}
+
+function renderSuggestions(matches) {
+  if (!suggestionsDropdown) return;
+  if (matches.length === 0) {
+    suggestionsDropdown.classList.remove('show');
+    return;
+  }
+  
+  suggestionsDropdown.innerHTML = matches.map(p => `
+    <button class="suggestion" onclick="selectAndScrollTo('${p.name}')">
+      <img src="${p.sprite || p.image}" alt="${p.name}">
+      <span>#${String(p.id).padStart(4, '0')} ${p.name}</span>
+    </button>
+  `).join('');
+  
+  suggestionsDropdown.classList.add('show');
+}
+
+window.selectAndScrollTo = function(pokemonName) {
+  const p = allPokemon.find(item => item.name.toLowerCase() === pokemonName.toLowerCase());
+  if (p) {
+    selectPokemon(p);
+    if (suggestionsDropdown) suggestionsDropdown.classList.remove('show');
+  }
+};
+
+// Applicazione filtri e ordinamento
+function applyFilters() {
+  const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
+  
+  filteredPokemon = allPokemon.filter(p => {
+    const matchesName = p.name.toLowerCase().includes(query) || String(p.id).includes(query);
+    const matchesType = selectedTypes.length === 0 || selectedTypes.every(t => p.types.includes(t));
+    return matchesName && matchesType;
+  });
+
+  filteredPokemon.sort((a, b) => sortAscending ? a.id - b.id : b.id - a.id);
+  
+  currentLimit = 48;
+  renderList();
+}
+
+// Rendering lista Pokémon
+function renderList() {
+  if (!pokemonListEl) return;
+  
+  if (countBadgeEl) {
+    countBadgeEl.textContent = `${filteredPokemon.length} POKÉMON`;
+  }
+  
+  const visible = filteredPokemon.slice(0, currentLimit);
+  
+  pokemonListEl.innerHTML = visible.map(p => {
+    const isSelected = selectedPokemon && selectedPokemon.id === p.id;
+    const formattedId = '#' + String(p.id).padStart(4, '0');
+    return `
+      <button class="pokemon-card ${isSelected ? 'active' : ''}" onclick="selectPokemonById(${p.id})">
+        <span class="pokemon-number">${formattedId}</span>
+        <img src="${p.image || p.sprite}" alt="${p.name}" loading="lazy">
+        <span class="pokemon-name">${p.name}</span>
+      </button>
+    `;
+  }).join('');
+  
+  if (loadMoreBtn) {
+    loadMoreBtn.style.display = currentLimit < filteredPokemon.length ? 'block' : 'none';
+  }
+}
+
+window.selectPokemonById = function(id) {
+  const p = allPokemon.find(item => item.id === id);
+  if (p) {
+    selectPokemon(p);
+  }
+};
+
+// Selezione e Render del Dettaglio Pokémon
+function selectPokemon(p) {
+  selectedPokemon = p;
+  renderList();
+  renderDetailCard(p);
+}
+
+function renderDetailCard(p) {
+  if (!detailCardEl) return;
+  
+  const formattedId = '#' + String(p.id).padStart(4, '0');
+  
+  // 1. TIPI BADGES
+  const typesHtml = (p.types || []).map(t => 
+    `<span class="type-badge" style="--type-color: var(--type-${t}, #666);">${t}</span>`
+  ).join('');
+
+  // 2. ABILITÀ
+  const abilitiesHtml = (p.abilities || []).map(a => `
+    <span class="ability-btn">${a.name}${a.is_hidden ? ' (Nascosta)' : ''}</span>
+  `).join('');
+
+  // 3. STATISTICHE (Con colore dinamico: Rosso 1-50, Arancione 51-100, Verde >=101)
   const maxBarValue = 180;
-  const statsHtml = p.stats.map(s => {
+  const statsHtml = (p.stats || []).map(s => {
     const sName = statNamesIt[s.stat.name] || s.stat.name;
     const moddedVal = calcModdedStat(s.stat.name, s.base_stat, p.name);
-    const fillPercent = Math.min(100, Math.max(12, (moddedVal / maxBarValue) * 100));
+    const fillPercent = Math.min(100, Math.max(10, (moddedVal / maxBarValue) * 100));
     
+    // Determinazione del colore
+    let hexColor = '#84cc16'; // Verde (101+)
+    let colorClass = 'stat-green';
+    
+    if (moddedVal <= 50) {
+      hexColor = '#ef4444'; // Rosso (1-50)
+      colorClass = 'stat-red';
+    } else if (moddedVal <= 100) {
+      hexColor = '#f97316'; // Arancione (51-100)
+      colorClass = 'stat-orange';
+    }
+
     return `
       <div class="stat-row">
         <span class="stat-label">${sName}</span>
         <span class="stat-value">${moddedVal}</span>
         <div class="stat-bar-bg">
-          <div class="stat-bar-fill" style="width: ${fillPercent}%;"></div>
+          <div class="stat-bar-fill ${colorClass}" style="width: ${fillPercent}%; background-color: ${hexColor} !important;"></div>
         </div>
       </div>`;
   }).join('');
 
-  // 4. ABILITÀ (Recupero nome Inglese | Italiano)
-  const abilityPromises = p.abilities.map(async a => {
-    let cached = state.abilityCache.get(a.ability.name);
-    if (!cached) {
-      cached = await getAbilityDetails(a.ability.url);
-      state.abilityCache.set(a.ability.name, cached);
-    }
-    return `
-      <button class="ability-btn" onclick="showAbilityDetail('${a.ability.name}', '${a.ability.url}')">
-        ${cached.fullName} ${a.is_hidden ? '<small>(Nascosta)</small>' : ''}
-      </button>
-    `;
-  });
+  // 4. DEBOLEZZE
+  const weaknessesHtml = (p.weaknesses || []).map(w => `
+    <span class="weakness" style="--type-color: var(--type-${w.type}, #666);">
+      ${w.type} <b>x${w.multiplier}</b>
+    </span>
+  `).join('');
 
-  const abilitiesHtmlArray = await Promise.all(abilityPromises);
-  const abilitiesHtml = abilitiesHtmlArray.join('');
-
-  const accent=typeMeta[types[0]][1];
-  
-  el('detail-card').innerHTML=`
-    <div class="detail-top" style="--accent:${accent}">
-      <span class="detail-index">#${String(p.id).padStart(4,'0')}</span>
-      <img src="${p.sprites.other?.home?.front_default||p.sprites.front_default}" alt="${pretty(p.name)}">
+  detailCardEl.innerHTML = `
+    <div class="detail-top">
+      <span class="detail-index">${formattedId}</span>
+      <img src="${p.image || p.sprite}" alt="${p.name}">
     </div>
     <div class="detail-content">
-      <h2>${pretty(p.name)}</h2>
-      <div class="card-types">${types.map(tag).join('')}</div>
+      <h2>${p.name}</h2>
+      <div class="card-types">${typesHtml}</div>
       
-      <p class="weakness-label" style="color:var(--lime); margin-top:10px;">ABILITÀ (CLICCA PER DETTAGLI)</p>
+      <div class="weakness-label" style="color: #84cc16; margin-top: 14px;">ABILITÀ (CLICCA PER DETTAGLI)</div>
       <div class="abilities-list">${abilitiesHtml}</div>
-
-      <p class="weakness-label" style="color:var(--lime); border-bottom:1px solid var(--line); padding-bottom:4px; margin-top:16px;">STATISTICHE (+75 HP / +20 ATK-DEF-SPE)</p>
-      <div class="stats-container">
-        ${statsHtml}
-      </div>
-
-      <p class="weakness-label" style="color:var(--lime); margin-top:16px;">SUPER EFFICACE CONTRO (STAB)</p>
-      <div class="weaknesses" style="margin-bottom:18px;">
-        ${superEffective.length ? superEffective.map(t=>`<span class="weakness" style="--type-color:${typeMeta[t][1]}">${typeMeta[t][0]}<b>×2</b></span>`).join('') : '<span class="weakness">Nessun tipo</span>'}
-      </div>
-
-      <p class="weakness-label">DEBOLEZZE (DANNI SUBITI)</p>
-      <div class="weaknesses">
-        ${weak.length?weak.map(([t,v])=>`<span class="weakness" style="--type-color:${typeMeta[t][1]}">${typeMeta[t][0]}<b>×${v}</b></span>`).join(''):'<span class="weakness">Nessuna</span>'}
-      </div>
       
-      <p class="resistance"><strong>Resistenze:</strong> ${resistant||'nessuna'}</p>
-    </div>`;
+      <div class="weakness-label" style="color: #84cc16; margin-top: 16px;">STATISTICHE</div>
+      <div class="stats-container">${statsHtml}</div>
+      
+      ${weaknessesHtml ? `
+        <div class="weakness-label" style="color: #84cc16; margin-top: 18px;">DEBOLEZZE (DANNI SUBITI)</div>
+        <div class="weaknesses">${weaknessesHtml}</div>
+      ` : ''}
+    </div>
+  `;
 }
-
-async function chooseType(type){
-  if(state.selectedTypes.includes(type)) state.selectedTypes=state.selectedTypes.filter(x=>x!==type);
-  else { if(state.selectedTypes.length===2) return; state.selectedTypes.push(type); if(!state.typeMembers.has(type)){ const r=await fetch(`${API}/type/${type}`); const d=await r.json(); state.typeMembers.set(type,new Set(d.pokemon.map(x=>x.pokemon.name))); state.typeRelations.set(type,d.damage_relations); } }
-  renderTypes();filterList();
-}
-
-function showSuggestions(value){
-  const q=value.trim().toLowerCase().replace('#',''); if(!q){el('suggestions').classList.remove('show');return}
-  const found=state.all.filter(p=>p.name.includes(q)||String(p.id).startsWith(q)||pretty(p.name).toLowerCase().includes(q)).slice(0,7);
-  el('suggestions').innerHTML=found.map(p=>`<button class="suggestion" data-name="${p.name}" data-id="${p.id}" role="option"><img src="${sprite(p.id,p.name)}" alt=""><span>${pretty(p.name)}<br><small>#${String(p.id).padStart(4,'0')}</small></span></button>`).join('')||'<div class="suggestion">Nessun risultato</div>';
-  el('suggestions').classList.add('show');
-}
-
-// EVENT LISTENERS
-el('type-grid').addEventListener('click',e=>{const b=e.target.closest('[data-type]');if(b&&!b.classList.contains('disabled'))chooseType(b.dataset.type)});
-list.addEventListener('click',e=>{const b=e.target.closest('.pokemon-card');if(b)selectPokemon(b.dataset.name,b.dataset.id)});
-el('suggestions').addEventListener('click',e=>{const b=e.target.closest('[data-name]');if(b){search.value=pretty(b.dataset.name);el('suggestions').classList.remove('show');selectPokemon(b.dataset.name,b.dataset.id)}});
-search.addEventListener('input',e=>showSuggestions(e.target.value));
-el('btn-clear-search').addEventListener('click',()=>{search.value='';showSuggestions('');search.focus()});
-el('btn-reset-types').addEventListener('click',()=>{state.selectedTypes=[];renderTypes();filterList()});
-el('btn-load-more').addEventListener('click',()=>{state.page++;renderList()});
-el('btn-sort').addEventListener('click',()=>{state.ascending=!state.ascending;el('btn-sort').innerHTML=`Ordina: <span>Numero ${state.ascending?'↓':'↑'}</span>`;filterList()});
-el('btn-about').addEventListener('click',()=>el('about-dialog').showModal());
-el('btn-close-about').addEventListener('click',()=>el('about-dialog').close());
-el('btn-close-ability').addEventListener('click',()=>el('abilityModal').style.display='none');
-
-renderTypes();
-loadDex();
