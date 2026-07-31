@@ -76,5 +76,25 @@
       </aside>
     </main>
   </div>
+
+  <!-- DIALOG DI SPIEGAZIONE -->
+  <dialog id="about-dialog">
+    <button class="dialog-close" id="btn-close-about">×</button>
+    <h2>Dex Atlas</h2>
+    <p>Dex Atlas ti permette di analizzare qualsiasi Pokémon delle generazioni correnti, calcolando in automatico le debolezze e resistenze di tipo reali, comprese le abilità speciali e le statistiche modificate per le tue battaglie.</p>
+  </dialog>
+
+  <!-- MODALE PER DETTAGLI ABILITA -->
+  <div id="abilityModal" class="ability-modal-overlay" style="display: none;">
+    <div class="ability-modal-box">
+      <button class="dialog-close" id="btn-close-ability">×</button>
+      <p class="eyebrow">ABILITÀ</p>
+      <h3 id="abilityModalTitle">--</h3>
+      <p id="abilityModalDesc">Caricamento...</p>
+    </div>
+  </div>
+
+  <!-- SCRIPT -->
+  <script src="app.js"></script>
 </body>
 </html>
