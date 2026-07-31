@@ -35,27 +35,45 @@ document.addEventListener('DOMContentLoaded', () => {
   setupEventListeners();
 });
 
+// Fetch dati: prima prova il JSON locale, altrimenti recupera da PokéAPI
 async function fetchPokemonData() {
   try {
     const response = await fetch('./pokemon_data.json');
-    if (!response.ok) {
-      throw new Error('Impossibile caricare pokemon_data.json');
-    }
+    if (!response.ok) throw new Error('File locale non presente');
     allPokemon = await response.json();
-    filteredPokemon = [...allPokemon];
-    renderList();
-    if (allPokemon.length > 0) {
-      selectPokemon(allPokemon[5] || allPokemon[0]);
-    }
   } catch (err) {
-    console.error('Errore nel caricamento dei dati Pokémon:', err);
+    console.log('Caricamento da file locale fallito, recupero da PokéAPI...');
+    try {
+      // Fallback su PokéAPI per i primi 151/1025 Pokémon
+      const apiRes = await fetch('https://pokeapi.co/api/v2/pokemon?limit=151');
+      const apiData = await apiRes.json();
+      allPokemon = await Promise.all(apiData.results.map(async (p, idx) => {
+        const detailRes = await fetch(p.url);
+        const detail = await detailRes.json();
+        return {
+          id: detail.id,
+          name: detail.name.charAt(0).toUpperCase() + detail.name.slice(1),
+          image: detail.sprites.other['official-artwork'].front_default || detail.sprites.front_default,
+          types: detail.types.map(t => t.type.name),
+          abilities: detail.abilities.map(a => ({ name: a.ability.name, is_hidden: a.is_hidden })),
+          stats: detail.stats // Struttura ufficiale PokéAPI
+        };
+      }));
+    } catch (apiErr) {
+      console.error('Errore durante il caricamento da PokéAPI:', apiErr);
+      return;
+    }
+  }
+
+  filteredPokemon = [...allPokemon];
+  renderList();
+  if (allPokemon.length > 0) {
+    selectPokemon(allPokemon[5] || allPokemon[0]); // Charizard (#6) o il primo
   }
 }
 
 function setupEventListeners() {
-  if (searchInput) {
-    searchInput.addEventListener('input', handleSearch);
-  }
+  if (searchInput) searchInput.addEventListener('input', handleSearch);
   
   if (clearSearchBtn) {
     clearSearchBtn.addEventListener('click', () => {
@@ -106,21 +124,17 @@ function setupEventListeners() {
 
 function handleSearch(e) {
   const query = e.target.value.trim().toLowerCase();
-  if (clearSearchBtn) {
-    clearSearchBtn.style.display = query ? 'block' : 'none';
-  }
+  if (clearSearchBtn) clearSearchBtn.style.display = query ? 'block' : 'none';
   
   if (query.length > 1) {
     const matches = allPokemon.filter(p => 
-      p.name.toLowerCase().includes(query) || 
+      (p.name && p.name.toLowerCase().includes(query)) || 
       String(p.id).includes(query)
     ).slice(0, 5);
-    
     renderSuggestions(matches);
   } else {
     if (suggestionsDropdown) suggestionsDropdown.classList.remove('show');
   }
-  
   applyFilters();
 }
 
@@ -133,7 +147,7 @@ function renderSuggestions(matches) {
   
   suggestionsDropdown.innerHTML = matches.map(p => `
     <button class="suggestion" onclick="selectAndScrollTo('${p.name}')">
-      <img src="${p.sprite || p.image}" alt="${p.name}">
+      <img src="${p.image || p.sprite || ''}" alt="${p.name}">
       <span>#${String(p.id).padStart(4, '0')} ${p.name}</span>
     </button>
   `).join('');
@@ -142,7 +156,7 @@ function renderSuggestions(matches) {
 }
 
 window.selectAndScrollTo = function(pokemonName) {
-  const p = allPokemon.find(item => item.name.toLowerCase() === pokemonName.toLowerCase());
+  const p = allPokemon.find(item => item.name && item.name.toLowerCase() === pokemonName.toLowerCase());
   if (p) {
     selectPokemon(p);
     if (suggestionsDropdown) suggestionsDropdown.classList.remove('show');
@@ -153,13 +167,12 @@ function applyFilters() {
   const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
   
   filteredPokemon = allPokemon.filter(p => {
-    const matchesName = p.name.toLowerCase().includes(query) || String(p.id).includes(query);
+    const matchesName = (p.name && p.name.toLowerCase().includes(query)) || String(p.id).includes(query);
     const matchesType = selectedTypes.length === 0 || selectedTypes.every(t => p.types && p.types.includes(t));
     return matchesName && matchesType;
   });
 
   filteredPokemon.sort((a, b) => sortAscending ? a.id - b.id : b.id - a.id);
-  
   currentLimit = 48;
   renderList();
 }
@@ -179,7 +192,7 @@ function renderList() {
     return `
       <button class="pokemon-card ${isSelected ? 'active' : ''}" onclick="selectPokemonById(${p.id})">
         <span class="pokemon-number">${formattedId}</span>
-        <img src="${p.image || p.sprite}" alt="${p.name}" loading="lazy">
+        <img src="${p.image || p.sprite || ''}" alt="${p.name}" loading="lazy">
         <span class="pokemon-name">${p.name}</span>
       </button>
     `;
@@ -192,9 +205,7 @@ function renderList() {
 
 window.selectPokemonById = function(id) {
   const p = allPokemon.find(item => item.id === id);
-  if (p) {
-    selectPokemon(p);
-  }
+  if (p) selectPokemon(p);
 };
 
 function selectPokemon(p) {
@@ -212,24 +223,31 @@ function renderDetailCard(p) {
     `<span class="type-badge" style="--type-color: var(--type-${t}, #666);">${t}</span>`
   ).join('');
 
-  const abilitiesHtml = (p.abilities || []).map(a => `
-    <span class="ability-btn">${a.name}${a.is_hidden ? ' (Nascosta)' : ''}</span>
-  `).join('');
+  const abilitiesHtml = (p.abilities || []).map(a => {
+    const name = typeof a === 'string' ? a : (a.name || '');
+    const isHidden = typeof a === 'object' && a.is_hidden;
+    return `<span class="ability-btn">${name}${isHidden ? ' (Nascosta)' : ''}</span>`;
+  }).join('');
 
+  // Estrazione statistiche standard PokéAPI
   const maxBarValue = 180;
   const statsHtml = (p.stats || []).map(s => {
-    const sName = statNamesIt[s.stat.name] || s.stat.name;
-    const moddedVal = calcModdedStat(s.stat.name, s.base_stat, p.name);
+    // Gestione nativa PokéAPI (s.stat.name e s.base_stat)
+    const rawName = s.stat ? s.stat.name : (s.name || '');
+    const baseVal = s.base_stat !== undefined ? s.base_stat : (s.value || 0);
+    
+    const sName = statNamesIt[rawName] || rawName;
+    const moddedVal = calcModdedStat(rawName, baseVal, p.name);
     const fillPercent = Math.min(100, Math.max(10, (moddedVal / maxBarValue) * 100));
     
-    let hexColor = '#84cc16';
+    let hexColor = '#84cc16'; // Verde (101+)
     let colorClass = 'stat-green';
     
     if (moddedVal <= 50) {
-      hexColor = '#ef4444';
+      hexColor = '#ef4444'; // Rosso (1-50)
       colorClass = 'stat-red';
     } else if (moddedVal <= 100) {
-      hexColor = '#f97316';
+      hexColor = '#f97316'; // Arancione (51-100)
       colorClass = 'stat-orange';
     }
 
@@ -252,7 +270,7 @@ function renderDetailCard(p) {
   detailCardEl.innerHTML = `
     <div class="detail-top">
       <span class="detail-index">${formattedId}</span>
-      <img src="${p.image || p.sprite}" alt="${p.name}">
+      <img src="${p.image || p.sprite || ''}" alt="${p.name}">
     </div>
     <div class="detail-content">
       <h2>${p.name}</h2>
