@@ -86,7 +86,7 @@ function renderTypeButtons() {
   });
 }
 
-// Fetch completa ed estrazione dei tipi
+// Fetch completa
 async function fetchPokemonData() {
   try {
     const response = await fetch('https://pokeapi.co/api/v2/pokemon?limit=1300');
@@ -115,16 +115,15 @@ async function fetchPokemonData() {
 
     filteredPokemon = [...allPokemon];
     renderList();
-    selectPokemonById(6); // Carica Charizard di default
+    selectPokemonById(6); // Charizard default
 
-    // Caricamento in background di TUTTI i tipi (Base + Mega + Forme Speciali)
     loadTypesInBackground();
   } catch (err) {
     console.error('Errore durante il recupero dati:', err);
   }
 }
 
-// Mappa TUTTI i tipi dei Pokémon (inclusi ID 10001+)
+// Scansione tipi in background per TUTTI i Pokémon
 async function loadTypesInBackground() {
   try {
     const res = await fetch('https://pokeapi.co/api/v2/type?limit=20');
@@ -191,7 +190,6 @@ function setupEventListeners() {
     });
   }
 
-  // Chiusura Modale Abilità
   if (btnCloseAbility) {
     btnCloseAbility.addEventListener('click', () => {
       if (abilityModal) abilityModal.style.display = 'none';
@@ -301,12 +299,39 @@ window.selectPokemonById = async function(id) {
       || data.sprites.front_default 
       || `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${id}.png`;
 
+    // Recupera nomi bilingue delle abilità
+    const abilitiesPromises = data.abilities.map(async (a) => {
+      let nameEng = a.ability.name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+      let nameIta = nameEng;
+
+      try {
+        const abRes = await fetch(a.ability.url);
+        const abData = await abRes.json();
+        
+        const itaNameObj = abData.names.find(n => n.language.name === 'it');
+        if (itaNameObj) {
+          nameIta = itaNameObj.name;
+        }
+      } catch (e) {
+        console.warn('Impossibile recuperare traduzione abilità:', e);
+      }
+
+      return {
+        rawName: a.ability.name,
+        displayName: `${nameEng} | ${nameIta}`,
+        url: a.ability.url,
+        is_hidden: a.is_hidden
+      };
+    });
+
+    const parsedAbilities = await Promise.all(abilitiesPromises);
+
     selectedPokemon = {
       id: data.id,
       name: formattedName,
       image: artwork,
       types: data.types.map(t => t.type.name),
-      abilities: data.abilities.map(a => ({ name: a.ability.name, url: a.ability.url, is_hidden: a.is_hidden })),
+      abilities: parsedAbilities,
       stats: data.stats
     };
 
@@ -330,8 +355,8 @@ function renderDetailCard(p) {
   ).join('');
 
   const abilitiesHtml = (p.abilities || []).map(a => `
-    <button class="ability-btn" onclick="showAbilityDetails('${a.name}', '${a.url}')">
-      ${a.name}${a.is_hidden ? ' (Nascosta)' : ''}
+    <button class="ability-btn" onclick="showAbilityDetails('${a.displayName.replace(/'/g, "\\'")}', '${a.url}')">
+      ${a.displayName}${a.is_hidden ? ' (Nascosta)' : ''}
     </button>
   `).join('');
 
@@ -383,31 +408,44 @@ function renderDetailCard(p) {
   `;
 }
 
-// Funzione Pop-up Dettagli Abilità
-window.showAbilityDetails = async function(name, url) {
+// Pop-up con traduzioni italiane delle descrizioni
+window.showAbilityDetails = async function(displayName, url) {
   if (!abilityModal) return;
   
-  const formattedName = name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-  abilityModalTitle.textContent = formattedName;
-  abilityModalDesc.textContent = "Caricamento in corso...";
+  abilityModalTitle.textContent = displayName;
+  abilityModalDesc.textContent = "Caricamento descrizione in corso...";
   abilityModal.style.display = 'flex';
 
   try {
     const res = await fetch(url);
     const data = await res.json();
 
-    // Cerca la descrizione in italiano, altrimenti usa l'inglese
-    let entry = data.effect_entries.find(e => e.language.name === 'it');
-    if (!entry) entry = data.effect_entries.find(e => e.language.name === 'en');
-    
-    if (entry) {
-      abilityModalDesc.textContent = entry.effect || entry.short_effect;
-    } else if (data.flavor_text_entries && data.flavor_text_entries.length > 0) {
-      const ft = data.flavor_text_entries.find(f => f.language.name === 'it') || data.flavor_text_entries.find(f => f.language.name === 'en');
-      abilityModalDesc.textContent = ft ? ft.flavor_text : "Nessuna descrizione disponibile.";
-    } else {
-      abilityModalDesc.textContent = "Descrizione non disponibile per questa abilità.";
+    let textIta = "";
+
+    // 1. Cerca il testo descrittivo dei giochi in italiano
+    if (data.flavor_text_entries && data.flavor_text_entries.length > 0) {
+      const itaFlavor = [...data.flavor_text_entries].reverse().find(f => f.language.name === 'it');
+      if (itaFlavor) {
+        textIta = itaFlavor.flavor_text;
+      }
     }
+
+    // 2. Cerca negli effect_entries in italiano se presente
+    if (!textIta && data.effect_entries && data.effect_entries.length > 0) {
+      const itaEffect = data.effect_entries.find(e => e.language.name === 'it');
+      if (itaEffect) {
+        textIta = itaEffect.short_effect || itaEffect.effect;
+      }
+    }
+
+    // 3. Fallback in Inglese se l'italiano non è disponibile nella PokéAPI
+    if (!textIta) {
+      const engEffect = data.effect_entries.find(e => e.language.name === 'en');
+      const engFlavor = data.flavor_text_entries ? [...data.flavor_text_entries].reverse().find(f => f.language.name === 'en') : null;
+      textIta = (engEffect ? (engEffect.short_effect || engEffect.effect) : (engFlavor ? engFlavor.flavor_text : "Descrizione non disponibile."));
+    }
+
+    abilityModalDesc.textContent = textIta;
   } catch (err) {
     abilityModalDesc.textContent = "Impossibile caricare i dettagli dell'abilità.";
   }
