@@ -144,14 +144,26 @@ function renderTypeButtons() {
   });
 }
 
+async function fetchAllPokemonResults() {
+  const results = [];
+  let url = 'https://pokeapi.co/api/v2/pokemon?limit=100';
+
+  while (url) {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('Errore PokéAPI');
+    const data = await response.json();
+    results.push(...data.results);
+    url = data.next;
+  }
+
+  return results;
+}
+
 async function fetchPokemonData() {
   try {
-    const response = await fetch('https://pokeapi.co/api/v2/pokemon?limit=1300');
-    if (!response.ok) throw new Error('Errore PokéAPI');
+    const results = await fetchAllPokemonResults();
     
-    const data = await response.json();
-    
-    allPokemon = data.results.map((p) => {
+    allPokemon = results.map((p) => {
       const urlParts = p.url.split('/').filter(Boolean);
       const id = parseInt(urlParts[urlParts.length - 1], 10);
       
@@ -453,7 +465,6 @@ function renderDetailCard(p) {
     `<span class="type-badge" style="--type-color: var(--type-${t}, #666);">${t.toUpperCase()}</span>`
   ).join('');
 
-  // Riquadro Super Efficace Contro (STAB)
   const superEffectiveHtml = (p.superEffective || []).map(t => {
     const typeIta = TYPE_NAMES_ITA[t] || t;
     return `
@@ -464,7 +475,6 @@ function renderDetailCard(p) {
     `;
   }).join('');
 
-  // Riquadro Debolezze (Danni Subiti)
   const weaknessesHtml = (p.weaknesses || []).map(w => {
     const typeIta = TYPE_NAMES_ITA[w.type] || w.type;
     return `
