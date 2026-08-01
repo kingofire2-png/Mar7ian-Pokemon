@@ -404,7 +404,31 @@
       return { resistances, immunities };
     }
 
-    // Calcolo Super Efficace Contro (STAB)
+    
+// Calcolo tipi offensivi contro un tipo difensivo
+function getAttackEffectivenessAgainstType(defenderType) {
+  const result = {
+    superEffective: [],
+    normal: [],
+    notVeryEffective: [],
+    immune: []
+  };
+
+  TYPES_CONFIG.forEach(attacker => {
+    const mult = (TYPE_CHART[defenderType] && TYPE_CHART[defenderType][attacker.id] !== undefined)
+      ? TYPE_CHART[defenderType][attacker.id]
+      : 1;
+
+    if (mult === 2) result.superEffective.push(attacker.id);
+    else if (mult === 1) result.normal.push(attacker.id);
+    else if (mult === 0.5) result.notVeryEffective.push(attacker.id);
+    else if (mult === 0) result.immune.push(attacker.id);
+  });
+
+  return result;
+}
+
+// Calcolo Super Efficace Contro (STAB)
     function calculateSuperEffective(types) {
       const effectiveSet = new Set();
       types.forEach(t => {
@@ -499,7 +523,7 @@
       const weaknessesHtml = (p.weaknesses || []).map(w => {
         const typeIta = TYPE_NAMES_ITA[w.type] || w.type;
         return `
-          <div class="weakness-badge" style="border: 1px solid var(--type-${w.type}); background: rgba(0, 0, 0, 0.2); color: #ffffff; padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; display: inline-flex; align-items: center; gap: 6px;">
+          <div class="weakness-badge" onclick="showTypeDetails('${w.type}')" style="cursor:pointer;border: 1px solid var(--type-${w.type}); background: rgba(0, 0, 0, 0.2); color: #ffffff; padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; display: inline-flex; align-items: center; gap: 6px;">
             <span>${typeIta}</span>
             <span style="color: var(--type-${w.type}); font-weight: 800;">&times;${w.multiplier}</span>
           </div>
