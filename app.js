@@ -1,4 +1,4 @@
-// Configurazione dei tipi Pokémon
+// Configurazione dei tipi Pokémon e colori
 const TYPES_CONFIG = [
   { id: 'normal', name: 'Normale' },
   { id: 'fire', name: 'Fuoco' },
@@ -19,6 +19,36 @@ const TYPES_CONFIG = [
   { id: 'steel', name: 'Acciaio' },
   { id: 'fairy', name: 'Folletto' }
 ];
+
+const TYPE_NAMES_ITA = {
+  normal: 'Normale', fire: 'Fuoco', water: 'Acqua', grass: 'Erba',
+  electric: 'Elettro', ice: 'Ghiaccio', fighting: 'Lotta', poison: 'Veleno',
+  ground: 'Terra', flying: 'Volante', psychic: 'Psico', bug: 'Coleottero',
+  rock: 'Roccia', ghost: 'Spettro', dragon: 'Drago', dark: 'Buio',
+  steel: 'Acciaio', fairy: 'Folletto'
+};
+
+// Matrice delle efficacie difensive dei Tipi
+const TYPE_CHART = {
+  normal:   { fighting: 2, ghost: 0 },
+  fire:     { water: 2, ground: 2, rock: 2, fire: 0.5, grass: 0.5, ice: 0.5, bug: 0.5, steel: 0.5, fairy: 0.5 },
+  water:    { electric: 2, grass: 2, fire: 0.5, water: 0.5, ice: 0.5, steel: 0.5 },
+  grass:    { fire: 2, ice: 2, poison: 2, flying: 2, bug: 2, water: 0.5, grass: 0.5, electric: 0.5, ground: 0.5 },
+  electric: { ground: 2, electric: 0.5, flying: 0.5, steel: 0.5 },
+  ice:      { fire: 2, fighting: 2, rock: 2, steel: 2, ice: 0.5 },
+  fighting: { flying: 2, psychic: 2, fairy: 2, bug: 0.5, rock: 0.5, dark: 0.5 },
+  poison:   { ground: 2, psychic: 2, grass: 0.5, fighting: 0.5, poison: 0.5, bug: 0.5, fairy: 0.5 },
+  ground:   { water: 2, grass: 2, ice: 2, poison: 0.5, rock: 0.5, electric: 0 },
+  flying:   { electric: 2, ice: 2, rock: 2, grass: 0.5, fighting: 0.5, bug: 0.5, ground: 0 },
+  psychic:  { bug: 2, ghost: 2, dark: 2, fighting: 0.5, psychic: 0.5 },
+  bug:      { fire: 2, flying: 2, rock: 2, grass: 0.5, fighting: 0.5, ground: 0.5 },
+  rock:     { water: 2, grass: 2, fighting: 2, ground: 2, steel: 2, normal: 0.5, fire: 0.5, poison: 0.5, flying: 0.5 },
+  ghost:    { ghost: 2, dark: 2, poison: 0.5, bug: 0.5, normal: 0, fighting: 0 },
+  dragon:   { ice: 2, dragon: 2, fairy: 2, fire: 0.5, water: 0.5, grass: 0.5, electric: 0.5 },
+  dark:     { fighting: 2, bug: 2, fairy: 2, ghost: 0.5, dark: 0.5, psychic: 0 },
+  steel:    { fire: 2, fighting: 2, ground: 2, normal: 0.5, grass: 0.5, ice: 0.5, flying: 0.5, psychic: 0.5, bug: 0.5, rock: 0.5, dragon: 0.5, steel: 0.5, fairy: 0.5, poison: 0 },
+  fairy:    { poison: 2, steel: 2, fighting: 0.5, bug: 0.5, dark: 0.5, dragon: 0 }
+};
 
 const statNamesIt = {
   'hp': 'PS',
@@ -75,10 +105,16 @@ function renderTypeButtons() {
       if (selectedTypes.includes(type)) {
         selectedTypes = selectedTypes.filter(t => t !== type);
         btn.classList.remove('selected');
+        btn.style.backgroundColor = '';
+        btn.style.borderColor = '';
+        btn.style.color = '';
       } else {
         if (selectedTypes.length < 2) {
           selectedTypes.push(type);
           btn.classList.add('selected');
+          btn.style.backgroundColor = `var(--type-${type})`;
+          btn.style.borderColor = `var(--type-${type})`;
+          btn.style.color = '#ffffff';
         }
       }
       applyFilters();
@@ -86,7 +122,6 @@ function renderTypeButtons() {
   });
 }
 
-// Fetch completa
 async function fetchPokemonData() {
   try {
     const response = await fetch('https://pokeapi.co/api/v2/pokemon?limit=1300');
@@ -115,7 +150,7 @@ async function fetchPokemonData() {
 
     filteredPokemon = [...allPokemon];
     renderList();
-    selectPokemonById(6); // Charizard default
+    selectPokemonById(6);
 
     loadTypesInBackground();
   } catch (err) {
@@ -123,7 +158,6 @@ async function fetchPokemonData() {
   }
 }
 
-// Scansione tipi in background per TUTTI i Pokémon
 async function loadTypesInBackground() {
   try {
     const res = await fetch('https://pokeapi.co/api/v2/type?limit=20');
@@ -185,7 +219,12 @@ function setupEventListeners() {
   if (resetTypesBtn) {
     resetTypesBtn.addEventListener('click', () => {
       selectedTypes = [];
-      document.querySelectorAll('.type-button').forEach(btn => btn.classList.remove('selected'));
+      document.querySelectorAll('.type-button').forEach(btn => {
+        btn.classList.remove('selected');
+        btn.style.backgroundColor = '';
+        btn.style.borderColor = '';
+        btn.style.color = '';
+      });
       applyFilters();
     });
   }
@@ -285,6 +324,32 @@ function renderList() {
   }
 }
 
+// Calcolo delle debolezze difensive del Pokémon
+function calculateWeaknesses(types) {
+  const multipliers = {};
+  TYPES_CONFIG.forEach(t => multipliers[t.id] = 1);
+
+  types.forEach(pType => {
+    const typeChart = TYPE_CHART[pType] || {};
+    Object.keys(typeChart).forEach(atkType => {
+      multipliers[atkType] *= typeChart[atkType];
+    });
+  });
+
+  const weaknesses = [];
+  Object.keys(multipliers).forEach(type => {
+    if (multipliers[type] > 1) {
+      weaknesses.push({
+        type: type,
+        multiplier: multipliers[type]
+      });
+    }
+  });
+
+  weaknesses.sort((a, b) => b.multiplier - a.multiplier);
+  return weaknesses;
+}
+
 window.selectPokemonById = async function(id) {
   try {
     const res = await fetch(`https://pokeapi.co/api/v2/pokemon/${id}`);
@@ -299,7 +364,6 @@ window.selectPokemonById = async function(id) {
       || data.sprites.front_default 
       || `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${id}.png`;
 
-    // Recupera nomi bilingue delle abilità
     const abilitiesPromises = data.abilities.map(async (a) => {
       let nameEng = a.ability.name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
       let nameIta = nameEng;
@@ -325,12 +389,14 @@ window.selectPokemonById = async function(id) {
     });
 
     const parsedAbilities = await Promise.all(abilitiesPromises);
+    const pokemonTypes = data.types.map(t => t.type.name);
 
     selectedPokemon = {
       id: data.id,
       name: formattedName,
       image: artwork,
-      types: data.types.map(t => t.type.name),
+      types: pokemonTypes,
+      weaknesses: calculateWeaknesses(pokemonTypes),
       abilities: parsedAbilities,
       stats: data.stats
     };
@@ -353,6 +419,17 @@ function renderDetailCard(p) {
   const typesHtml = (p.types || []).map(t => 
     `<span class="type-badge" style="--type-color: var(--type-${t}, #666);">${t.toUpperCase()}</span>`
   ).join('');
+
+  // Generazione riquadro debolezze (danni subiti x2 e x4)
+  const weaknessesHtml = (p.weaknesses || []).map(w => {
+    const typeIta = TYPE_NAMES_ITA[w.type] || w.type;
+    return `
+      <div class="weakness-badge" style="border: 1px solid var(--type-${w.type}); background: rgba(0, 0, 0, 0.2); color: #ffffff; padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; display: inline-flex; align-items: center; gap: 6px;">
+        <span>${typeIta}</span>
+        <span style="color: var(--type-${w.type}); font-weight: 800;">&times;${w.multiplier}</span>
+      </div>
+    `;
+  }).join('');
 
   const abilitiesHtml = (p.abilities || []).map(a => `
     <button class="ability-btn" onclick="showAbilityDetails('${a.displayName.replace(/'/g, "\\'")}', '${a.url}')">
@@ -399,6 +476,11 @@ function renderDetailCard(p) {
       <h2>${p.name}</h2>
       <div class="card-types">${typesHtml}</div>
       
+      <div class="weakness-label" style="color: #84cc16; margin-top: 14px;">DEBOLEZZE (DANNI SUBITI)</div>
+      <div class="weaknesses-list" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px;">
+        ${weaknessesHtml.length > 0 ? weaknessesHtml : '<span style="font-size: 0.8rem; color: var(--text-muted);">Nessuna debolezza speciale.</span>'}
+      </div>
+
       <div class="weakness-label" style="color: #84cc16; margin-top: 14px;">ABILITÀ (CLICCA PER DETTAGLI)</div>
       <div class="abilities-list">${abilitiesHtml}</div>
       
@@ -408,7 +490,6 @@ function renderDetailCard(p) {
   `;
 }
 
-// Pop-up con traduzioni italiane delle descrizioni
 window.showAbilityDetails = async function(displayName, url) {
   if (!abilityModal) return;
   
@@ -422,7 +503,6 @@ window.showAbilityDetails = async function(displayName, url) {
 
     let textIta = "";
 
-    // 1. Cerca il testo descrittivo dei giochi in italiano
     if (data.flavor_text_entries && data.flavor_text_entries.length > 0) {
       const itaFlavor = [...data.flavor_text_entries].reverse().find(f => f.language.name === 'it');
       if (itaFlavor) {
@@ -430,7 +510,6 @@ window.showAbilityDetails = async function(displayName, url) {
       }
     }
 
-    // 2. Cerca negli effect_entries in italiano se presente
     if (!textIta && data.effect_entries && data.effect_entries.length > 0) {
       const itaEffect = data.effect_entries.find(e => e.language.name === 'it');
       if (itaEffect) {
@@ -438,7 +517,6 @@ window.showAbilityDetails = async function(displayName, url) {
       }
     }
 
-    // 3. Fallback in Inglese se l'italiano non è disponibile nella PokéAPI
     if (!textIta) {
       const engEffect = data.effect_entries.find(e => e.language.name === 'en');
       const engFlavor = data.flavor_text_entries ? [...data.flavor_text_entries].reverse().find(f => f.language.name === 'en') : null;
