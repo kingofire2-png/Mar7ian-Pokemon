@@ -28,7 +28,7 @@ const TYPE_NAMES_ITA = {
   steel: 'Acciaio', fairy: 'Folletto'
 };
 
-// Matrice delle efficacie difensive dei Tipi
+// Matrice dell'efficacia difensiva (danni subiti)
 const TYPE_CHART = {
   normal:   { fighting: 2, ghost: 0 },
   fire:     { water: 2, ground: 2, rock: 2, fire: 0.5, grass: 0.5, ice: 0.5, bug: 0.5, steel: 0.5, fairy: 0.5 },
@@ -48,6 +48,28 @@ const TYPE_CHART = {
   dark:     { fighting: 2, bug: 2, fairy: 2, ghost: 0.5, dark: 0.5, psychic: 0 },
   steel:    { fire: 2, fighting: 2, ground: 2, normal: 0.5, grass: 0.5, ice: 0.5, flying: 0.5, psychic: 0.5, bug: 0.5, rock: 0.5, dragon: 0.5, steel: 0.5, fairy: 0.5, poison: 0 },
   fairy:    { poison: 2, steel: 2, fighting: 0.5, bug: 0.5, dark: 0.5, dragon: 0 }
+};
+
+// Matrice dell'efficacia offensiva (Super Efficace Contro)
+const OFFENSIVE_CHART = {
+  normal:   [],
+  fire:     ['grass', 'ice', 'bug', 'steel'],
+  water:    ['fire', 'ground', 'rock'],
+  grass:    ['water', 'ground', 'rock'],
+  electric: ['water', 'flying'],
+  ice:      ['grass', 'ground', 'flying', 'dragon'],
+  fighting: ['normal', 'ice', 'rock', 'dark', 'steel'],
+  poison:   ['grass', 'fairy'],
+  ground:   ['fire', 'electric', 'poison', 'rock', 'steel'],
+  flying:   ['grass', 'fighting', 'bug'],
+  psychic:  ['fighting', 'poison'],
+  bug:      ['grass', 'psychic', 'dark'],
+  rock:     ['fire', 'ice', 'flying', 'bug'],
+  ghost:    ['psychic', 'ghost'],
+  dragon:   ['dragon'],
+  dark:     ['psychic', 'ghost'],
+  steel:    ['ice', 'rock', 'fairy'],
+  fairy:    ['fighting', 'dragon', 'dark']
 };
 
 const statNamesIt = {
@@ -324,7 +346,7 @@ function renderList() {
   }
 }
 
-// Calcolo delle debolezze difensive del Pokémon
+// Calcolo Debolezze Difensive
 function calculateWeaknesses(types) {
   const multipliers = {};
   TYPES_CONFIG.forEach(t => multipliers[t.id] = 1);
@@ -348,6 +370,16 @@ function calculateWeaknesses(types) {
 
   weaknesses.sort((a, b) => b.multiplier - a.multiplier);
   return weaknesses;
+}
+
+// Calcolo Super Efficace Contro (STAB)
+function calculateSuperEffective(types) {
+  const effectiveSet = new Set();
+  types.forEach(t => {
+    const targets = OFFENSIVE_CHART[t] || [];
+    targets.forEach(target => effectiveSet.add(target));
+  });
+  return Array.from(effectiveSet);
 }
 
 window.selectPokemonById = async function(id) {
@@ -396,6 +428,7 @@ window.selectPokemonById = async function(id) {
       name: formattedName,
       image: artwork,
       types: pokemonTypes,
+      superEffective: calculateSuperEffective(pokemonTypes),
       weaknesses: calculateWeaknesses(pokemonTypes),
       abilities: parsedAbilities,
       stats: data.stats
@@ -420,7 +453,18 @@ function renderDetailCard(p) {
     `<span class="type-badge" style="--type-color: var(--type-${t}, #666);">${t.toUpperCase()}</span>`
   ).join('');
 
-  // Generazione riquadro debolezze (danni subiti x2 e x4)
+  // Riquadro Super Efficace Contro (STAB)
+  const superEffectiveHtml = (p.superEffective || []).map(t => {
+    const typeIta = TYPE_NAMES_ITA[t] || t;
+    return `
+      <div class="weakness-badge" style="border: 1px solid var(--type-${t}); background: rgba(0, 0, 0, 0.2); color: #ffffff; padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; display: inline-flex; align-items: center; gap: 6px;">
+        <span>${typeIta}</span>
+        <span style="color: var(--type-${t}); font-weight: 800;">&times;2</span>
+      </div>
+    `;
+  }).join('');
+
+  // Riquadro Debolezze (Danni Subiti)
   const weaknessesHtml = (p.weaknesses || []).map(w => {
     const typeIta = TYPE_NAMES_ITA[w.type] || w.type;
     return `
@@ -476,6 +520,11 @@ function renderDetailCard(p) {
       <h2>${p.name}</h2>
       <div class="card-types">${typesHtml}</div>
       
+      <div class="weakness-label" style="color: #84cc16; margin-top: 14px;">SUPER EFFICACE CONTRO (STAB)</div>
+      <div class="weaknesses-list" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px;">
+        ${superEffectiveHtml.length > 0 ? superEffectiveHtml : '<span style="font-size: 0.8rem; color: var(--text-muted);">Nessuna efficacia STAB speciale.</span>'}
+      </div>
+
       <div class="weakness-label" style="color: #84cc16; margin-top: 14px;">DEBOLEZZE (DANNI SUBITI)</div>
       <div class="weaknesses-list" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px;">
         ${weaknessesHtml.length > 0 ? weaknessesHtml : '<span style="font-size: 0.8rem; color: var(--text-muted);">Nessuna debolezza speciale.</span>'}
