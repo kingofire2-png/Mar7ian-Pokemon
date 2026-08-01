@@ -36,7 +36,7 @@ let currentLimit = 48;
 let sortAscending = true;
 let selectedTypes = [];
 
-// Elementi DOM (Allineati perfettamente con l'HTML)
+// Elementi DOM
 const pokemonListEl = document.getElementById('pokemon-list');
 const countBadgeEl = document.getElementById('pokemon-count');
 const searchInput = document.getElementById('search-input');
@@ -47,13 +47,18 @@ const loadMoreBtn = document.getElementById('btn-load-more');
 const detailCardEl = document.getElementById('detail-card');
 const resetTypesBtn = document.getElementById('btn-reset-types');
 
+// Modal Abilità
+const abilityModal = document.getElementById('abilityModal');
+const abilityModalTitle = document.getElementById('abilityModalTitle');
+const abilityModalDesc = document.getElementById('abilityModalDesc');
+const btnCloseAbility = document.getElementById('btn-close-ability');
+
 document.addEventListener('DOMContentLoaded', () => {
   renderTypeButtons();
   fetchPokemonData();
   setupEventListeners();
 });
 
-// Generazione dinamica dei pulsanti tipo
 function renderTypeButtons() {
   const container = document.getElementById('type-grid');
   if (!container) return;
@@ -81,11 +86,11 @@ function renderTypeButtons() {
   });
 }
 
-// Fetch completa da PokéAPI
+// Fetch completa ed estrazione dei tipi
 async function fetchPokemonData() {
   try {
     const response = await fetch('https://pokeapi.co/api/v2/pokemon?limit=1300');
-    if (!response.ok) throw new Error('Errore nel caricamento da PokéAPI');
+    if (!response.ok) throw new Error('Errore PokéAPI');
     
     const data = await response.json();
     
@@ -110,11 +115,38 @@ async function fetchPokemonData() {
 
     filteredPokemon = [...allPokemon];
     renderList();
-    
-    // Carica Charizard (#6) all'avvio
-    selectPokemonById(6);
+    selectPokemonById(6); // Carica Charizard di default
+
+    // Caricamento in background di TUTTI i tipi (Base + Mega + Forme Speciali)
+    loadTypesInBackground();
   } catch (err) {
-    console.error('Errore durante il recupero dei dati:', err);
+    console.error('Errore durante il recupero dati:', err);
+  }
+}
+
+// Mappa TUTTI i tipi dei Pokémon (inclusi ID 10001+)
+async function loadTypesInBackground() {
+  try {
+    const res = await fetch('https://pokeapi.co/api/v2/type?limit=20');
+    const typeData = await res.json();
+
+    for (const t of typeData.results) {
+      const typeRes = await fetch(t.url);
+      const details = await typeRes.json();
+      
+      const typeName = t.name;
+      details.pokemon.forEach(item => {
+        const urlParts = item.pokemon.url.split('/').filter(Boolean);
+        const pId = parseInt(urlParts[urlParts.length - 1], 10);
+        const pok = allPokemon.find(p => p.id === pId);
+        if (pok && !pok.types.includes(typeName)) {
+          pok.types.push(typeName);
+        }
+      });
+    }
+    applyFilters();
+  } catch (e) {
+    console.warn('Caricamento tipi completato parzialmente:', e);
   }
 }
 
@@ -130,7 +162,6 @@ function setupEventListeners() {
     });
   }
 
-  // Chiudi menu quando si clicca fuori
   document.addEventListener('click', (e) => {
     if (suggestionsDropdown && !e.target.closest('.search-box')) {
       suggestionsDropdown.classList.remove('show');
@@ -159,16 +190,25 @@ function setupEventListeners() {
       applyFilters();
     });
   }
+
+  // Chiusura Modale Abilità
+  if (btnCloseAbility) {
+    btnCloseAbility.addEventListener('click', () => {
+      if (abilityModal) abilityModal.style.display = 'none';
+    });
+  }
 }
 
 function handleSearch(e) {
-  const query = e.target.value.trim().toLowerCase();
+  const query = e.target.value.trim().toLowerCase().replace(/[\s-]/g, '');
   if (clearSearchBtn) clearSearchBtn.style.display = query ? 'block' : 'none';
   
   if (query.length > 0) {
-    const matches = allPokemon.filter(p => 
-      p.name.toLowerCase().includes(query) || String(p.id).includes(query)
-    ).slice(0, 5);
+    const matches = allPokemon.filter(p => {
+      const cleanName = p.name.toLowerCase().replace(/[\s-]/g, '');
+      const cleanRaw = p.rawName.toLowerCase().replace(/[\s-]/g, '');
+      return cleanName.includes(query) || cleanRaw.includes(query) || String(p.id).includes(query);
+    }).slice(0, 6);
     renderSuggestions(matches);
   } else {
     if (suggestionsDropdown) suggestionsDropdown.classList.remove('show');
@@ -202,10 +242,14 @@ window.selectAndScrollTo = function(rawName) {
 };
 
 function applyFilters() {
-  const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
+  const rawQuery = searchInput ? searchInput.value.trim().toLowerCase() : '';
+  const query = rawQuery.replace(/[\s-]/g, '');
   
   filteredPokemon = allPokemon.filter(p => {
-    const matchesName = p.name.toLowerCase().includes(query) || String(p.id).includes(query);
+    const cleanName = p.name.toLowerCase().replace(/[\s-]/g, '');
+    const cleanRaw = p.rawName.toLowerCase().replace(/[\s-]/g, '');
+    const matchesName = cleanName.includes(query) || cleanRaw.includes(query) || String(p.id).includes(query);
+    
     const matchesType = selectedTypes.length === 0 || selectedTypes.every(t => p.types && p.types.includes(t));
     return matchesName && matchesType;
   });
@@ -243,7 +287,6 @@ function renderList() {
   }
 }
 
-// Caricamento completo dei dettagli da PokéAPI
 window.selectPokemonById = async function(id) {
   try {
     const res = await fetch(`https://pokeapi.co/api/v2/pokemon/${id}`);
@@ -263,7 +306,7 @@ window.selectPokemonById = async function(id) {
       name: formattedName,
       image: artwork,
       types: data.types.map(t => t.type.name),
-      abilities: data.abilities.map(a => ({ name: a.ability.name, is_hidden: a.is_hidden })),
+      abilities: data.abilities.map(a => ({ name: a.ability.name, url: a.ability.url, is_hidden: a.is_hidden })),
       stats: data.stats
     };
 
@@ -273,7 +316,7 @@ window.selectPokemonById = async function(id) {
     renderList();
     renderDetailCard(selectedPokemon);
   } catch (err) {
-    console.error('Errore nel caricamento del dettaglio Pokémon:', err);
+    console.error('Errore nel caricamento dettagli:', err);
   }
 };
 
@@ -287,7 +330,9 @@ function renderDetailCard(p) {
   ).join('');
 
   const abilitiesHtml = (p.abilities || []).map(a => `
-    <span class="ability-btn">${a.name}${a.is_hidden ? ' (Nascosta)' : ''}</span>
+    <button class="ability-btn" onclick="showAbilityDetails('${a.name}', '${a.url}')">
+      ${a.name}${a.is_hidden ? ' (Nascosta)' : ''}
+    </button>
   `).join('');
 
   const maxBarValue = 250;
@@ -295,20 +340,18 @@ function renderDetailCard(p) {
     const rawName = s.stat ? s.stat.name : s.name;
     const baseVal = s.base_stat !== undefined ? s.base_stat : s.value;
     
-    // Calcolo Modificato Livello 50: +75 HP, +20 altre stats
     const modifiedVal = (rawName === 'hp') ? (baseVal + 75) : (baseVal + 20);
-    
     const sName = statNamesIt[rawName] || rawName;
     const fillPercent = Math.min(100, Math.max(10, (modifiedVal / maxBarValue) * 100));
     
-    let hexColor = '#84cc16'; // Verde (121+)
+    let hexColor = '#84cc16';
     let colorClass = 'stat-green';
     
     if (modifiedVal <= 70) {
-      hexColor = '#ef4444'; // Rosso (1-70)
+      hexColor = '#ef4444';
       colorClass = 'stat-red';
     } else if (modifiedVal <= 120) {
-      hexColor = '#f97316'; // Arancione (71-120)
+      hexColor = '#f97316';
       colorClass = 'stat-orange';
     }
 
@@ -339,3 +382,33 @@ function renderDetailCard(p) {
     </div>
   `;
 }
+
+// Funzione Pop-up Dettagli Abilità
+window.showAbilityDetails = async function(name, url) {
+  if (!abilityModal) return;
+  
+  const formattedName = name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  abilityModalTitle.textContent = formattedName;
+  abilityModalDesc.textContent = "Caricamento in corso...";
+  abilityModal.style.display = 'flex';
+
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+
+    // Cerca la descrizione in italiano, altrimenti usa l'inglese
+    let entry = data.effect_entries.find(e => e.language.name === 'it');
+    if (!entry) entry = data.effect_entries.find(e => e.language.name === 'en');
+    
+    if (entry) {
+      abilityModalDesc.textContent = entry.effect || entry.short_effect;
+    } else if (data.flavor_text_entries && data.flavor_text_entries.length > 0) {
+      const ft = data.flavor_text_entries.find(f => f.language.name === 'it') || data.flavor_text_entries.find(f => f.language.name === 'en');
+      abilityModalDesc.textContent = ft ? ft.flavor_text : "Nessuna descrizione disponibile.";
+    } else {
+      abilityModalDesc.textContent = "Descrizione non disponibile per questa abilità.";
+    }
+  } catch (err) {
+    abilityModalDesc.textContent = "Impossibile caricare i dettagli dell'abilità.";
+  }
+};
