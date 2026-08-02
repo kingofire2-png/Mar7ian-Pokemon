@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dex Atlas — Pokédex</title>
   <link rel="stylesheet" href="./styles.css?v=1.6">
-
 </head>
 <body>
   <div class="app-shell">
@@ -13,61 +12,78 @@
       <div class="brand">
         <span class="brand-title">DEX ATLAS</span>
       </div>
+
+      <!-- 1. MENU A TENDINA INTEGRATO NELLA TOPBAR -->
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <label for="app-navigation-select" style="color: var(--text-muted); font-size: 0.8rem; font-weight: 600;">Sezione:</label>
+        <select id="app-navigation-select" onchange="window.switchAppSection(this.value)" style="background: var(--card-bg); color: var(--lime); border: 1px solid var(--border-color); padding: 6px 12px; border-radius: 6px; font-weight: 700; cursor: pointer;">
+          <option value="pokedex">Pokédex Principale</option>
+          <option value="damage-calc">Calcolo Danni</option>
+        </select>
+      </div>
+
       <div class="topbar-actions">
         <span class="generation-pill">GEN I - IX</span>
         <button id="btn-about" class="about-button">INFO</button>
       </div>
     </header>
 
-    <main>
-      <section class="hero">
-        <p class="hero-tagline">POKÉDEX · ENCICLOPEDIA DI TUTTE LE GENERAZIONI</p>
-        <h1 class="hero-title">Pokédex</h1>
-        <p class="hero-description">Cerca un Pokémon per vedere le debolezze reali, oppure combina fino a due tipi per trovarne uno da catturare.</p>
-      </section>
+    <!-- 2. VISTA PRINCIPALE (IL TUO VECCHIO MAIN DENTRO QUESTO DIV) -->
+    <div id="main-pokedex-view">
+      <main>
+        <section class="hero">
+          <p class="hero-tagline">POKÉDEX · ENCICLOPEDIA DI TUTTE LE GENERAZIONI</p>
+          <h1 class="hero-title">Pokédex</h1>
+          <p class="hero-description">Cerca un Pokémon per vedere le debolezze reali, oppure combina fino a due tipi per trovarne uno da catturare.</p>
+        </section>
 
-      <section class="control-panel">
-        <div class="search-group">
-          <label for="search-input" class="search-label">Cerca per nome o numero</label>
-          <div class="search-box">
-            <span class="search-icon">🔍</span>
-            <input type="text" id="search-input" placeholder="Es. Charizard, Lucario o #0006" autocomplete="off">
-            <button id="btn-clear-search" class="clear-button" aria-label="Cancella ricerca">✕</button>
-            <div id="suggestions" class="suggestions-dropdown"></div>
-          </div>
-        </div>
-
-        <div class="divider"></div>
-
-        <div class="type-filter-group">
-          <div class="type-filter-header">
-            <span class="filter-label">Filtra per tipo</span>
-            <button id="btn-reset-types" class="reset-button">RESET</button>
-          </div>
-          <p class="filter-instruction">Scegli fino a <strong>2 tipi</strong></p>
-          <div id="type-grid" class="type-grid"></div>
-        </div>
-      </section>
-
-      <section class="content-grid">
-        <aside class="detail-section">
-          <div id="detail-card" class="detail-card">
-            <div class="detail-empty">
-              <p>Seleziona un Pokémon per vederne le informazioni</p>
+        <section class="control-panel">
+          <div class="search-group">
+            <label for="search-input" class="search-label">Cerca per nome o numero</label>
+            <div class="search-box">
+              <span class="search-icon">🔍</span>
+              <input type="text" id="search-input" placeholder="Es. Charizard, Lucario o #0006" autocomplete="off">
+              <button id="btn-clear-search" class="clear-button" aria-label="Cancella ricerca">✕</button>
+              <div id="suggestions" class="suggestions-dropdown"></div>
             </div>
           </div>
-        </aside>
 
-        <section class="pokemon-section">
-          <div class="list-header">
-            <span id="pokemon-count" class="count-badge">0 POKÉMON</span>
-            <button id="btn-sort" class="sort-button">Ordina: <span>Numero ↓</span></button>
+          <div class="divider"></div>
+
+          <div class="type-filter-group">
+            <div class="type-filter-header">
+              <span class="filter-label">Filtra per tipo</span>
+              <button id="btn-reset-types" class="reset-button">RESET</button>
+            </div>
+            <p class="filter-instruction">Scegli fino a <strong>2 tipi</strong></p>
+            <div id="type-grid" class="type-grid"></div>
           </div>
-          <div id="pokemon-list" class="pokemon-list"></div>
-          <button id="btn-load-more" class="load-more-button" style="display:none;">Carica altri</button>
         </section>
-      </section>
-    </main>
+
+        <section class="content-grid">
+          <aside class="detail-section">
+            <div id="detail-card" class="detail-card">
+              <div class="detail-empty">
+                <p>Seleziona un Pokémon per vederne le informazioni</p>
+              </div>
+            </div>
+          </aside>
+
+          <section class="pokemon-section">
+            <div class="list-header">
+              <span id="pokemon-count" class="count-badge">0 POKÉMON</span>
+              <button id="btn-sort" class="sort-button">Ordina: <span>Numero ↓</span></button>
+            </div>
+            <div id="pokemon-list" class="pokemon-list"></div>
+            <button id="btn-load-more" class="load-more-button" style="display:none;">Carica altri</button>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <!-- 3. CONTAINER PER LA VISTA CALCOLO DANNI -->
+    <div id="damage-calc-view" style="display: none;"></div>
+
   </div>
 
   <!-- Modal Abilità -->
@@ -86,11 +102,9 @@
     <button id="btn-close-about" class="modal-close-btn">Chiudi</button>
   </dialog>
 
+  <!-- 4. CARICAMENTO DEGLI SCRIPT -->
   <script src="type-details.js"></script>
-
   <script src="./app.js?v=1.2"></script>
-
   <script src="./Calcolo_Danni.js"></script>
-
 </body>
 </html>
