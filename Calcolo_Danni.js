@@ -1,5 +1,5 @@
 /**
- * Calcolo_Danni.js - Versione con Autocomplete Suggerimenti e Filtri Tipo Funzionanti
+ * Calcolo_Danni.js - Versione con Autocomplete, Filtri Tipo e terminologia EV (0-32)
  */
 
 (function () {
@@ -86,7 +86,7 @@
     calcContainer.innerHTML = `
       <header style="margin-bottom: 24px; text-align: center;">
         <h1 style="font-size: 2.2rem; font-weight: 800; color: #84cc16;">Calcolo Danni Pokémon</h1>
-        <p style="color: #8e9bb0;">Statistiche (HP+75, Altre+20), Passino (0-32) e ricerca avanzata.</p>
+        <p style="color: #8e9bb0;">Statistiche (HP+75, Altre+20), EV (0-32) e ricerca avanzata.</p>
       </header>
 
       <div style="display: flex; justify-content: center; gap: 16px; margin-bottom: 24px;">
@@ -267,14 +267,12 @@
     filteredPokemon = [...localPokemonList];
     renderGrid();
 
-    // Sincronizza i tipi in background per far funzionare i filtri senza lag
     fetchTypesForDataset();
 
     assignPokemonSlot(979, 'A');
     assignPokemonSlot(7, 'B');
   }
 
-  // Pre-caricamento in background dei tipi per il filtraggio avanzato
   async function fetchTypesForDataset() {
     try {
       const res = await fetch('https://pokeapi.co/api/v2/type');
@@ -437,9 +435,9 @@
     const statsHtml = pokemonA.stats.map(s => {
       const statKey = s.stat.name;
       const baseVal = s.base_stat;
-      const bonusPassino = statsBonusA[statKey] || 0;
+      const bonusEV = statsBonusA[statKey] || 0;
       const offset = (statKey === 'hp') ? 75 : 20;
-      const totalVal = baseVal + offset + bonusPassino;
+      const totalVal = baseVal + offset + bonusEV;
 
       return `
         <div style="display: grid; grid-template-columns: 80px 50px 1fr 100px; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 0.8rem;">
@@ -449,8 +447,8 @@
             <div style="width: ${Math.min(100, (totalVal / 300) * 100)}%; height: 100%; background: #84cc16;"></div>
           </div>
           <div style="display: flex; align-items: center; gap: 4px;">
-            <label style="font-size: 0.7rem; color: #8e9bb0;">Passino:</label>
-            <input type="number" min="0" max="32" value="${bonusPassino}" onchange="window.updatePassino('A', '${statKey}', this.value)" style="width: 45px; background: #0b0e14; border: 1px solid #26334d; color: #fff; text-align: center; border-radius: 4px; padding: 2px;">
+            <label style="font-size: 0.7rem; color: #8e9bb0;">EV:</label>
+            <input type="number" min="0" max="32" value="${bonusEV}" onchange="window.updateEV('A', '${statKey}', this.value)" style="width: 45px; background: #0b0e14; border: 1px solid #26334d; color: #fff; text-align: center; border-radius: 4px; padding: 2px;">
           </div>
         </div>
       `;
@@ -476,7 +474,7 @@
         </div>
       </div>
 
-      <div style="font-size: 0.75rem; font-weight: 700; color: #84cc16; margin-bottom: 8px;">STATISTICHE (BASE + OFFSET + PASSINO 0-32)</div>
+      <div style="font-size: 0.75rem; font-weight: 700; color: #84cc16; margin-bottom: 8px;">STATISTICHE (BASE + OFFSET + EV 0-32)</div>
       <div>${statsHtml}</div>
     `;
 
@@ -491,9 +489,9 @@
     const statsHtml = pokemonB.stats.map(s => {
       const statKey = s.stat.name;
       const baseVal = s.base_stat;
-      const bonusPassino = statsBonusB[statKey] || 0;
+      const bonusEV = statsBonusB[statKey] || 0;
       const offset = (statKey === 'hp') ? 75 : 20;
-      const totalVal = baseVal + offset + bonusPassino;
+      const totalVal = baseVal + offset + bonusEV;
 
       return `
         <div style="display: grid; grid-template-columns: 80px 50px 1fr 100px; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 0.8rem;">
@@ -503,8 +501,8 @@
             <div style="width: ${Math.min(100, (totalVal / 300) * 100)}%; height: 100%; background: #4f46e5;"></div>
           </div>
           <div style="display: flex; align-items: center; gap: 4px;">
-            <label style="font-size: 0.7rem; color: #8e9bb0;">Passino:</label>
-            <input type="number" min="0" max="32" value="${bonusPassino}" onchange="window.updatePassino('B', '${statKey}', this.value)" style="width: 45px; background: #0b0e14; border: 1px solid #26334d; color: #fff; text-align: center; border-radius: 4px; padding: 2px;">
+            <label style="font-size: 0.7rem; color: #8e9bb0;">EV:</label>
+            <input type="number" min="0" max="32" value="${bonusEV}" onchange="window.updateEV('B', '${statKey}', this.value)" style="width: 45px; background: #0b0e14; border: 1px solid #26334d; color: #fff; text-align: center; border-radius: 4px; padding: 2px;">
           </div>
         </div>
       `;
@@ -519,12 +517,12 @@
         </div>
       </div>
 
-      <div style="font-size: 0.75rem; font-weight: 700; color: #4f46e5; margin-bottom: 8px;">STATISTICHE (BASE + OFFSET + PASSINO 0-32)</div>
+      <div style="font-size: 0.75rem; font-weight: 700; color: #4f46e5; margin-bottom: 8px;">STATISTICHE (BASE + OFFSET + EV 0-32)</div>
       <div>${statsHtml}</div>
     `;
   }
 
-  window.updatePassino = function(slot, statKey, value) {
+  window.updateEV = function(slot, statKey, value) {
     let numVal = parseInt(value, 10);
     if (isNaN(numVal) || numVal < 0) numVal = 0;
     if (numVal > 32) numVal = 32;
