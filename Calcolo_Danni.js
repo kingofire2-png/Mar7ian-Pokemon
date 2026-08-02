@@ -1,5 +1,5 @@
 /**
- * Calcolo_Danni.js - Parte 1
+ * Calcolo_Danni.js - Pagina Standalone Calcolo Danni
  */
 
 (function () {
@@ -33,290 +33,345 @@
   let allPokemon = [];
   let filteredPokemon = [];
   let selectedTypes = [];
-  let sortAscending = true;
   let currentLimit = 48;
 
   let pokemonA = null;
   let pokemonB = null;
   let targetSelection = 'A';
 
-  let statsBonusA = { 'hp': 0, 'attack': 0, 'defense': 0, 'special-attack': 0, 'special-defense': 0, 'speed': 0 };
-  let statsBonusB = { 'hp': 0, 'attack': 0, 'defense': 0, 'special-attack': 0, 'special-defense': 0, 'speed': 0 };
+  // Valori passini da 1 a 32 per ogni statistica (default: 1)
+  let statsBonusA = { 'hp': 1, 'attack': 1, 'defense': 1, 'special-attack': 1, 'special-defense': 1, 'speed': 1 };
+  let statsBonusB = { 'hp': 1, 'attack': 1, 'defense': 1, 'special-attack': 1, 'special-defense': 1, 'speed': 1 };
 
-  let selectedMove = { name: 'Azione', type: 'normal', power: 40 };
+  let selectedMove = { name: 'Scegli Mossa', type: 'normal', power: 0 };
 
   document.addEventListener('DOMContentLoaded', () => {
-    initDamageCalcUI();
-    fetchPokemonData();
+    initPageLayout();
+    fetch1351Pokemon();
   });
 
-  function initDamageCalcUI() {
-    const mainContainer = document.querySelector('main') || document.body;
+  // Render della Nuova Pagina
+  function initPageLayout() {
+    document.body.innerHTML = `
+      <div style="max-width: 1200px; margin: 0 auto; padding: 20px; font-family: system-ui, -apple-system, sans-serif; color: var(--text-main, #f0f4fc);">
+        <header style="margin-bottom: 24px; text-align: center;">
+          <h1 style="font-size: 2.2rem; font-weight: 800; color: #84cc16;">Calcolo Danni Pokémon</h1>
+          <p style="color: #8e9bb0;">Seleziona i Pokémon, regola i passini da 1 a 32 e analizza le mosse ufficiali in italiano.</p>
+        </header>
 
-    const calcSection = document.createElement('section');
-    calcSection.id = 'damage-calc-section';
-    calcSection.style.cssText = 'margin-top: 40px; padding: 24px; background: var(--panel-bg, #121824); border: 1px solid var(--border-color, #26334d); border-radius: 12px;';
-
-    calcSection.innerHTML = `
-      <h2 style="font-size: 1.8rem; font-weight: 800; color: var(--text-main, #f0f4fc); margin-bottom: 6px;">Calcolo Danni</h2>
-      <p style="color: var(--text-muted, #8e9bb0); font-size: 0.9rem; margin-bottom: 20px;">Seleziona i Pokémon, configura le mosse ed eroga i passini (+32 PS/Stats).</p>
-
-      <div class="calc-search-group" style="margin-bottom: 20px;">
-        <label style="font-size: 0.85rem; font-weight: 600; display: block; margin-bottom: 8px;">Cerca per nome o numero</label>
-        <div style="position: relative;">
-          <input type="text" id="calc-search-input" placeholder="Es. Charizard, Lucario o #0006" style="width: 100%; background: var(--bg-dark, #0b0e14); border: 1px solid var(--border-color, #26334d); border-radius: 8px; padding: 10px 16px; color: #fff;">
-          <div id="calc-suggestions" style="position: absolute; top: 100%; left: 0; right: 0; background: var(--card-bg, #182030); border: 1px solid var(--border-color, #26334d); border-radius: 8px; z-index: 999; display: none; max-height: 200px; overflow-y: auto;"></div>
+        <!-- Selezione Target Attaccante / Difensore -->
+        <div style="display: flex; justify-content: center; gap: 16px; margin-bottom: 24px;">
+          <button id="btn-target-a" style="padding: 10px 20px; border-radius: 8px; font-weight: 700; cursor: pointer; border: 2px solid #84cc16; background: #84cc16; color: #000;">
+            Destinazione: Pokémon A (Attaccante)
+          </button>
+          <button id="btn-target-b" style="padding: 10px 20px; border-radius: 8px; font-weight: 700; cursor: pointer; border: 2px solid #26334d; background: #182030; color: #fff;">
+            Destinazione: Pokémon B (Difensore)
+          </button>
         </div>
-      </div>
 
-      <div style="margin-bottom: 24px; padding-top: 16px; border-top: 1px solid var(--border-color, #26334d);">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-          <span style="font-size: 0.85rem; font-weight: 600;">Filtra per tipo (Max 2)</span>
-          <button id="calc-btn-reset-types" style="background: transparent; border: none; color: var(--text-muted, #8e9bb0); font-size: 0.75rem; cursor: pointer;">RESET</button>
+        <!-- Box Pokémon A e B -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-bottom: 32px;">
+          <div id="box-a" style="background: #182030; border: 2px solid #84cc16; border-radius: 12px; padding: 20px;">
+            <h3 style="color: #84cc16; text-align: center; margin-bottom: 12px;">POKÉMON A (ATTACCANTE)</h3>
+            <div id="content-a"><p style="text-align: center; color: #8e9bb0;">Seleziona un Pokémon dalla lista sottostante</p></div>
+          </div>
+          <div id="box-b" style="background: #182030; border: 2px solid #26334d; border-radius: 12px; padding: 20px;">
+            <h3 style="color: #4f46e5; text-align: center; margin-bottom: 12px;">POKÉMON B (DIFENSORE)</h3>
+            <div id="content-b"><p style="text-align: center; color: #8e9bb0;">Seleziona un Pokémon dalla lista sottostante</p></div>
+          </div>
         </div>
-        <div id="calc-type-grid" style="display: flex; flex-wrap: wrap; gap: 6px;"></div>
-      </div>
 
-      <div style="display: flex; justify-content: center; gap: 16px; margin-bottom: 20px;">
-        <button id="btn-select-target-a" style="padding: 8px 16px; border-radius: 6px; font-weight: 700; cursor: pointer; border: 2px solid var(--lime, #84cc16); background: var(--lime, #84cc16); color: #000;">
-          Target: Pokémon A (Attaccante)
-        </button>
-        <button id="btn-select-target-b" style="padding: 8px 16px; border-radius: 6px; font-weight: 700; cursor: pointer; border: 2px solid var(--border-color, #26334d); background: var(--card-bg, #182030); color: #fff;">
-          Target: Pokémon B (Difensore)
-        </button>
-      </div>
-
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 32px;">
-        <div id="box-pokemon-a" style="background: var(--card-bg, #182030); border: 2px solid var(--lime, #84cc16); border-radius: 12px; padding: 20px;">
-          <div style="text-align: center; font-weight: 800; color: var(--lime, #84cc16); margin-bottom: 12px;">POKÉMON A (ATTACCANTE)</div>
-          <div id="content-pokemon-a"><p style="text-align: center; color: var(--text-muted, #8e9bb0);">Seleziona dalla lista</p></div>
+        <!-- Filtri e Lista Pokémon -->
+        <div style="background: #121824; border: 1px solid #26334d; border-radius: 12px; padding: 20px;">
+          <div style="margin-bottom: 16px;">
+            <input type="text" id="calc-search" placeholder="Cerca tra tutti i 1351 Pokémon per nome o ID..." style="width: 100%; padding: 12px; background: #0b0e14; border: 1px solid #26334d; border-radius: 8px; color: #fff;">
+          </div>
+          <div id="type-filters" style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px;"></div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 12px; color: #8e9bb0; font-size: 0.85rem;">
+            <span id="pokemon-count">0 POKÉMON TROVATI</span>
+          </div>
+          <div id="pokemon-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px;"></div>
+          <button id="btn-load-more" style="width: 100%; padding: 12px; margin-top: 16px; background: #182030; border: 1px solid #26334d; color: #fff; border-radius: 8px; cursor: pointer; display: none;">Carica altri</button>
         </div>
-        <div id="box-pokemon-b" style="background: var(--card-bg, #182030); border: 2px solid var(--border-color, #26334d); border-radius: 12px; padding: 20px;">
-          <div style="text-align: center; font-weight: 800; color: var(--accent, #4f46e5); margin-bottom: 12px;">POKÉMON B (DIFENSORE)</div>
-          <div id="content-pokemon-b"><p style="text-align: center; color: var(--text-muted, #8e9bb0);">Seleziona dalla lista</p></div>
-        </div>
-      </div>
-
-      <div style="border-top: 1px solid var(--border-color, #26334d); padding-top: 24px;">
-        <div style="display: flex; justify-content: space-between; margin-bottom: 16px;">
-          <span id="calc-pokemon-count" style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted, #8e9bb0);">0 POKÉMON</span>
-          <button id="calc-btn-sort" style="background: transparent; border: none; color: #fff; font-size: 0.8rem; cursor: pointer;">Ordina: <span>Numero ↓</span></button>
-        </div>
-        <div id="calc-pokemon-list" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px;"></div>
       </div>
     `;
 
-    mainContainer.appendChild(calcSection);
-    renderTypeButtons();
-    setupEventListeners();
+    renderTypeFilters();
+    setupTargetControls();
   }
 
-  function renderTypeButtons() {
-    const container = document.getElementById('calc-type-grid');
-    if (!container) return;
+  function renderTypeFilters() {
+    const container = document.getElementById('type-filters');
     container.innerHTML = TYPES_CONFIG.map(t => `
-      <button class="calc-type-button" data-type="${t.id}" style="background: var(--bg-dark, #0b0e14); border: 1px solid var(--border-color, #26334d); color: #fff; padding: 6px 12px; border-radius: 6px; font-size: 0.75rem; cursor: pointer;">
+      <button class="type-btn" data-type="${t.id}" style="background: #0b0e14; border: 1px solid #26334d; color: #fff; padding: 6px 12px; border-radius: 6px; font-size: 0.75rem; cursor: pointer;">
         ${t.name}
       </button>
     `).join('');
 
-    container.querySelectorAll('.calc-type-button').forEach(btn => {
+    container.querySelectorAll('.type-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const type = btn.getAttribute('data-type');
         if (selectedTypes.includes(type)) {
           selectedTypes = selectedTypes.filter(t => t !== type);
-          btn.style.backgroundColor = '';
+          btn.style.backgroundColor = '#0b0e14';
         } else if (selectedTypes.length < 2) {
           selectedTypes.push(type);
-          btn.style.backgroundColor = `var(--type-${type}, #84cc16)`;
+          btn.style.backgroundColor = '#84cc16';
         }
         applyFilters();
       });
     });
   }
 
-  async function fetchPokemonData() {
-    try {
-      const res = await fetch('https://pokeapi.co/api/v2/pokemon?limit=151');
-      const data = await res.json();
-      allPokemon = data.results.map((p, idx) => ({
-        id: idx + 1,
-        rawName: p.name,
-        name: p.name.charAt(0).toUpperCase() + p.name.slice(1),
-        image: `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${idx + 1}.png`,
-        types: []
-      }));
-      filteredPokemon = [...allPokemon];
-      renderList();
-      assignPokemonToSlot(4, 'A');
-      assignPokemonToSlot(7, 'B');
-    } catch (e) { console.error(e); }
+  function setupTargetControls() {
+    const btnA = document.getElementById('btn-target-a');
+    const btnB = document.getElementById('btn-target-b');
+
+    btnA.addEventListener('click', () => {
+      targetSelection = 'A';
+      btnA.style.background = '#84cc16'; btnA.style.borderColor = '#84cc16'; btnA.style.color = '#000';
+      btnB.style.background = '#182030'; btnB.style.borderColor = '#26334d'; btnB.style.color = '#fff';
+    });
+
+    btnB.addEventListener('click', () => {
+      targetSelection = 'B';
+      btnB.style.background = '#4f46e5'; btnB.style.borderColor = '#4f46e5'; btnB.style.color = '#fff';
+      btnA.style.background = '#182030'; btnA.style.borderColor = '#26334d'; btnA.style.color = '#fff';
+    });
+
+    document.getElementById('calc-search').addEventListener('input', applyFilters);
+    document.getElementById('btn-load-more').addEventListener('click', () => {
+      currentLimit += 48;
+      renderGrid();
+    });
   }
-  /* Calcolo_Danni.js - Parte 2 */
 
-  function setupEventListeners() {
-    const input = document.getElementById('calc-search-input');
-    const sortBtn = document.getElementById('calc-btn-sort');
-    const resetBtn = document.getElementById('calc-btn-reset-types');
-    const targetA = document.getElementById('btn-select-target-a');
-    const targetB = document.getElementById('btn-select-target-b');
+  // Caricamento completo dei 1351 Pokémon da PokéAPI
+  async function fetch1351Pokemon() {
+    try {
+      const res = await fetch('https://pokeapi.co/api/v2/pokemon?limit=1351');
+      const data = await res.json();
 
-    if (input) input.addEventListener('input', (e) => {
-      const q = e.target.value.toLowerCase().trim();
-      filteredPokemon = allPokemon.filter(p => p.name.toLowerCase().includes(q) || String(p.id).includes(q));
-      renderList();
-    });
-
-    if (sortBtn) sortBtn.addEventListener('click', () => {
-      sortAscending = !sortAscending;
-      filteredPokemon.sort((a, b) => sortAscending ? a.id - b.id : b.id - a.id);
-      renderList();
-    });
-
-    if (resetBtn) resetBtn.addEventListener('click', () => {
-      selectedTypes = [];
-      document.querySelectorAll('.calc-type-button').forEach(b => b.style.backgroundColor = '');
-      applyFilters();
-    });
-
-    if (targetA && targetB) {
-      targetA.addEventListener('click', () => {
-        targetSelection = 'A';
-        targetA.style.background = 'var(--lime, #84cc16)'; targetA.style.color = '#000';
-        targetB.style.background = 'var(--card-bg, #182030)'; targetB.style.color = '#fff';
+      allPokemon = data.results.map((p) => {
+        const parts = p.url.split('/').filter(Boolean);
+        const id = parseInt(parts[parts.length - 1], 10);
+        return {
+          id: id,
+          rawName: p.name,
+          name: p.name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+          image: `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${id}.png`,
+          types: []
+        };
       });
-      targetB.addEventListener('click', () => {
-        targetSelection = 'B';
-        targetB.style.background = 'var(--accent, #4f46e5)'; targetB.style.color = '#fff';
-        targetA.style.background = 'var(--card-bg, #182030)'; targetA.style.color = '#fff';
-      });
+
+      filteredPokemon = [...allPokemon];
+      renderGrid();
+
+      // Assegna Charmander (4) e Squirtle (7) di default
+      assignPokemonSlot(4, 'A');
+      assignPokemonSlot(7, 'B');
+    } catch (err) {
+      console.error('Errore nel caricamento dei 1351 Pokémon:', err);
     }
   }
 
   function applyFilters() {
-    filteredPokemon = allPokemon.filter(p => selectedTypes.length === 0 || selectedTypes.every(t => p.types.includes(t)));
-    renderList();
+    const query = document.getElementById('calc-search').value.toLowerCase().trim();
+    filteredPokemon = allPokemon.filter(p => {
+      const matchName = p.name.toLowerCase().includes(query) || String(p.id).includes(query);
+      const matchType = selectedTypes.length === 0 || selectedTypes.every(t => p.types.includes(t));
+      return matchName && matchType;
+    });
+    currentLimit = 48;
+    renderGrid();
   }
 
-  function renderList() {
-    const container = document.getElementById('calc-pokemon-list');
-    const countEl = document.getElementById('calc-pokemon-count');
-    if (!container) return;
-    if (countEl) countEl.textContent = `${filteredPokemon.length} POKÉMON`;
+  function renderGrid() {
+    const container = document.getElementById('pokemon-grid');
+    const countEl = document.getElementById('pokemon-count');
+    const loadMoreBtn = document.getElementById('btn-load-more');
 
-    container.innerHTML = filteredPokemon.slice(0, currentLimit).map(p => `
-      <button onclick="window.calcAssignToCurrentTarget(${p.id})" style="background: var(--panel-bg, #121824); border: 1px solid var(--border-color, #26334d); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; align-items: center; cursor: pointer; color: #fff;">
-        <span style="font-size: 0.7rem; color: var(--text-muted); align-self: flex-start;">#${String(p.id).padStart(4, '0')}</span>
-        <img src="${p.image}" style="width: 60px; height: 60px; object-fit: contain;">
-        <span style="font-size: 0.8rem; font-weight: 600;">${p.name}</span>
+    countEl.textContent = `${filteredPokemon.length} POKÉMON TROVATI`;
+    const visible = filteredPokemon.slice(0, currentLimit);
+
+    container.innerHTML = visible.map(p => `
+      <button onclick="window.calcAssignPokemon(${p.id})" style="background: #121824; border: 1px solid #26334d; border-radius: 8px; padding: 10px; display: flex; flex-direction: column; align-items: center; cursor: pointer; color: #fff;">
+        <span style="font-size: 0.7rem; color: #8e9bb0; align-self: flex-start;">#${String(p.id).padStart(4, '0')}</span>
+        <img src="${p.image}" alt="${p.name}" style="width: 60px; height: 60px; object-fit: contain;" onerror="this.src='https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${p.id}.png'">
+        <span style="font-size: 0.8rem; font-weight: 600; margin-top: 4px; text-align: center;">${p.name}</span>
       </button>
     `).join('');
+
+    loadMoreBtn.style.display = currentLimit < filteredPokemon.length ? 'block' : 'none';
   }
 
-  window.calcAssignToCurrentTarget = (id) => assignPokemonToSlot(id, targetSelection);
+  window.calcAssignPokemon = (id) => assignPokemonSlot(id, targetSelection);
 
-  async function assignPokemonToSlot(id, slot) {
+   /* Calcolo_Danni.js - Parte 2 */
+
+  async function assignPokemonSlot(id, slot) {
     try {
       const res = await fetch(`https://pokeapi.co/api/v2/pokemon/${id}`);
       const data = await res.json();
-      const pObj = {
+
+      const pokemonObj = {
         id: data.id,
-        name: data.name.charAt(0).toUpperCase() + data.name.slice(1),
+        name: data.name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
         image: data.sprites.other['official-artwork'].front_default || data.sprites.front_default,
         types: data.types.map(t => t.type.name),
         stats: data.stats,
         moves: data.moves
       };
 
-      if (slot === 'A') { pokemonA = pObj; renderPokemonA(); }
-      else { pokemonB = pObj; renderPokemonB(); }
-    } catch (e) { console.error(e); }
+      if (slot === 'A') {
+        pokemonA = pokemonObj;
+        await renderPokemonA();
+      } else {
+        pokemonB = pokemonObj;
+        renderPokemonB();
+      }
+    } catch (e) {
+      console.error('Errore nell\'assegnare il Pokémon:', e);
+    }
   }
 
-  function renderPokemonA() {
-    const container = document.getElementById('content-pokemon-a');
+  // Render Pokémon A (Attaccante con Mosse in Italiano e Potenza Ufficiale)
+  async function renderPokemonA() {
+    const container = document.getElementById('content-a');
     if (!container || !pokemonA) return;
 
-    const movesOptionsHtml = pokemonA.moves.slice(0, 30).map(m => `<option value="${m.move.url}">${m.move.name}</option>`).join('');
+    // Recupera la prima mossa e scarica la traduzione in italiano e la potenza reale
+    const movesListHtml = pokemonA.moves.map(m => {
+      return `<option value="${m.move.url}">${m.move.name}</option>`;
+    }).join('');
+
     const statsHtml = pokemonA.stats.map(s => {
-      const key = s.stat.name;
-      const total = s.base_stat + (statsBonusA[key] || 0);
+      const statKey = s.stat.name;
+      const baseVal = s.base_stat;
+      const bonus = statsBonusA[statKey] || 1;
+      const totalVal = baseVal + bonus;
+
       return `
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; font-size: 0.75rem;">
-          <span>${STAT_NAMES_ITA[key] || key}: <strong>${total}</strong></span>
-          <div>
-            <button onclick="window.updateStatBonus('A', '${key}', -32)" style="background:#0b0e14; border:1px solid #26334d; color:#fff; border-radius:4px;">-32</button>
-            <button onclick="window.updateStatBonus('A', '${key}', 32)" style="background:#0b0e14; border:1px solid #26334d; color:#fff; border-radius:4px;">+32</button>
+        <div style="display: grid; grid-template-columns: 80px 50px 1fr 100px; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 0.8rem;">
+          <span style="color: #8e9bb0;">${STAT_NAMES_ITA[statKey] || statKey}</span>
+          <span style="font-weight: 700;">${totalVal}</span>
+          <div style="background: #0b0e14; height: 6px; border-radius: 3px; overflow: hidden;">
+            <div style="width: ${Math.min(100, (totalVal / 250) * 100)}%; height: 100%; background: #84cc16;"></div>
+          </div>
+          <!-- Input Passino da 1 a 32 -->
+          <div style="display: flex; align-items: center; gap: 4px;">
+            <label style="font-size: 0.7rem; color: #8e9bb0;">Passino:</label>
+            <input type="number" min="1" max="32" value="${bonus}" onchange="window.updatePassino('A', '${statKey}', this.value)" style="width: 45px; background: #0b0e14; border: 1px solid #26334d; color: #fff; text-align: center; border-radius: 4px; padding: 2px;">
           </div>
         </div>
       `;
     }).join('');
 
     container.innerHTML = `
-      <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
-        <img src="${pokemonA.image}" style="width:70px; height:70px;">
-        <h3 style="font-size:1.1rem; color:#fff;">${pokemonA.name}</h3>
-      </div>
-      <div style="background:#0b0e14; padding:8px; border-radius:6px; margin-bottom:12px;">
-        <label style="font-size:0.75rem; color:#8e9bb0;">MOSSA</label>
-        <select onchange="window.handleMoveChange(this.value)" style="width:100%; background:#121824; color:#fff; border:1px solid #26334d; padding:4px; border-radius:4px;">
-          ${movesOptionsHtml}
-        </select>
-        <div style="display:flex; justify-content:space-between; margin-top:6px; font-size:0.8rem;">
-          <span>Potenza:</span>
-          <input type="number" value="${selectedMove.power}" onchange="window.updateMovePower(this.value)" style="width:50px; text-align:center; background:#121824; color:#fff; border:1px solid #26334d;">
+      <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 16px;">
+        <img src="${pokemonA.image}" style="width: 80px; height: 80px; object-fit: contain;">
+        <div>
+          <h3 style="font-size: 1.2rem; font-weight: 800; color: #fff;">${pokemonA.name}</h3>
+          <div>${pokemonA.types.map(t => `<span style="background: #26334d; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; margin-right: 4px;">${(TYPE_NAMES_ITA[t] || t).toUpperCase()}</span>`).join('')}</div>
         </div>
       </div>
+
+      <!-- Sezione Mossa con Traduzione Italiana e Potenza Ufficiale -->
+      <div style="background: #0b0e14; padding: 12px; border-radius: 8px; margin-bottom: 16px; border: 1px solid #26334d;">
+        <label style="font-size: 0.75rem; font-weight: 700; color: #8e9bb0; display: block; margin-bottom: 6px;">MOSSA ATTACCO (ITALIANO)</label>
+        <select id="select-move-a" onchange="window.loadItalianMoveDetails(this.value)" style="width: 100%; background: #121824; border: 1px solid #26334d; color: #fff; padding: 8px; border-radius: 6px; font-size: 0.85rem; margin-bottom: 8px;">
+          ${movesListHtml}
+        </select>
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;">
+          <span id="move-ita-name" style="font-weight: 700; color: #84cc16;">Nome Ita: -</span>
+          <span id="move-power-val" style="font-weight: 700; color: #fff;">Potenza Reale: -</span>
+        </div>
+      </div>
+
+      <div style="font-size: 0.75rem; font-weight: 700; color: #84cc16; margin-bottom: 8px;">STATISTICHE (BASE + PASSINO 1-32)</div>
       <div>${statsHtml}</div>
     `;
+
+    if (pokemonA.moves.length > 0) {
+      loadItalianMoveDetails(pokemonA.moves[0].move.url);
+    }
   }
 
+  // Render Pokémon B (Difensore)
   function renderPokemonB() {
-    const container = document.getElementById('content-pokemon-b');
+    const container = document.getElementById('content-b');
     if (!container || !pokemonB) return;
 
     const statsHtml = pokemonB.stats.map(s => {
-      const key = s.stat.name;
-      const total = s.base_stat + (statsBonusB[key] || 0);
+      const statKey = s.stat.name;
+      const baseVal = s.base_stat;
+      const bonus = statsBonusB[statKey] || 1;
+      const totalVal = baseVal + bonus;
+
       return `
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; font-size: 0.75rem;">
-          <span>${STAT_NAMES_ITA[key] || key}: <strong>${total}</strong></span>
-          <div>
-            <button onclick="window.updateStatBonus('B', '${key}', -32)" style="background:#0b0e14; border:1px solid #26334d; color:#fff; border-radius:4px;">-32</button>
-            <button onclick="window.updateStatBonus('B', '${key}', 32)" style="background:#0b0e14; border:1px solid #26334d; color:#fff; border-radius:4px;">+32</button>
+        <div style="display: grid; grid-template-columns: 80px 50px 1fr 100px; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 0.8rem;">
+          <span style="color: #8e9bb0;">${STAT_NAMES_ITA[statKey] || statKey}</span>
+          <span style="font-weight: 700;">${totalVal}</span>
+          <div style="background: #0b0e14; height: 6px; border-radius: 3px; overflow: hidden;">
+            <div style="width: ${Math.min(100, (totalVal / 250) * 100)}%; height: 100%; background: #4f46e5;"></div>
+          </div>
+          <!-- Input Passino da 1 a 32 -->
+          <div style="display: flex; align-items: center; gap: 4px;">
+            <label style="font-size: 0.7rem; color: #8e9bb0;">Passino:</label>
+            <input type="number" min="1" max="32" value="${bonus}" onchange="window.updatePassino('B', '${statKey}', this.value)" style="width: 45px; background: #0b0e14; border: 1px solid #26334d; color: #fff; text-align: center; border-radius: 4px; padding: 2px;">
           </div>
         </div>
       `;
     }).join('');
 
     container.innerHTML = `
-      <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
-        <img src="${pokemonB.image}" style="width:70px; height:70px;">
-        <h3 style="font-size:1.1rem; color:#fff;">${pokemonB.name}</h3>
+      <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 16px;">
+        <img src="${pokemonB.image}" style="width: 80px; height: 80px; object-fit: contain;">
+        <div>
+          <h3 style="font-size: 1.2rem; font-weight: 800; color: #fff;">${pokemonB.name}</h3>
+          <div>${pokemonB.types.map(t => `<span style="background: #26334d; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; margin-right: 4px;">${(TYPE_NAMES_ITA[t] || t).toUpperCase()}</span>`).join('')}</div>
+        </div>
       </div>
+
+      <div style="font-size: 0.75rem; font-weight: 700; color: #4f46e5; margin-bottom: 8px;">STATISTICHE (BASE + PASSINO 1-32)</div>
       <div>${statsHtml}</div>
     `;
   }
 
-  window.updateStatBonus = (slot, key, amount) => {
+  // Aggiornamento Passino (valore forzato tra 1 e 32)
+  window.updatePassino = function(slot, statKey, value) {
+    let numVal = parseInt(value, 10);
+    if (isNaN(numVal) || numVal < 1) numVal = 1;
+    if (numVal > 32) numVal = 32;
+
     if (slot === 'A') {
-      statsBonusA[key] = Math.max(0, (statsBonusA[key] || 0) + amount);
+      statsBonusA[statKey] = numVal;
       renderPokemonA();
     } else {
-      statsBonusB[key] = Math.max(0, (statsBonusB[key] || 0) + amount);
+      statsBonusB[statKey] = numVal;
       renderPokemonB();
     }
   };
 
-  window.handleMoveChange = async (moveUrl) => {
+  // Carica i dettagli della mossa traducendo il nome in Italiano ed estraendo la potenza ufficiale
+  window.loadItalianMoveDetails = async function(moveUrl) {
     try {
       const res = await fetch(moveUrl);
       const data = await res.json();
-      selectedMove.power = data.power || 40;
-      renderPokemonA();
-    } catch(e) {}
-  };
 
-  window.updateMovePower = (val) => { selectedMove.power = parseInt(val, 10) || 0; };
+      // Trova il nome in italiano nella lista "names"
+      const itaEntry = data.names.find(n => n.language.name === 'it');
+      const itaName = itaEntry ? itaEntry.name : data.name;
+      const movePower = data.power !== null ? data.power : 0;
+
+      const nameEl = document.getElementById('move-ita-name');
+      const powerEl = document.getElementById('move-power-val');
+
+      if (nameEl) nameEl.textContent = `Mossa: ${itaName}`;
+      if (powerEl) powerEl.textContent = `Potenza Reale: ${movePower}`;
+    } catch (e) {
+      console.error('Errore nel recupero dettagli mossa:', e);
+    }
+  };
 
 })();
