@@ -1,5 +1,5 @@
 /**
- * Calcolo_Danni.js - Versione Corretta (Filtri Tipi, Traduzione Integrale Mosse, Statistiche +75/+20)
+ * Calcolo_Danni.js - Versione Completa (Passino 0-32, Mosse per Tipo in ITA, Filtri integrati con app.js)
  */
 
 (function () {
@@ -30,23 +30,22 @@
     'special-attack': 'Sp. Atk', 'special-defense': 'Sp. Def', 'speed': 'Velocità'
   };
 
-  // Dizionario esteso di traduzione per le mosse
-  const MOVE_DICTIONARY_ITA = {
-    'dig': 'Fossa', 'seismic-toss': 'Movimento Sismico', 'screech': 'Stridio',
-    'focus-energy': 'Focalenergia', 'metronome': 'Metronomo', 'swift': 'Cometone',
-    'fury-swipes': 'Sfogofuria', 'night-shade': 'Ombra Notturna', 'thunder': 'Tuono',
-    'fire-punch': 'Pugnofuoco', 'ice-punch': 'Gelopugno', 'thunder-punch': 'Tuonopugno',
+  const MOVE_TRANSLATIONS = {
     'scratch': 'Graffio', 'body-slam': 'Corpo a Corpo', 'take-down': 'Ridotto',
     'thrash': 'Colpo', 'double-edge': 'Sdoppiatore', 'leer': 'Peculiare',
     'hyper-beam': 'Iper Raggio', 'low-kick': 'Colpo Basso', 'counter': 'Contropiede',
-    'rage-fist': 'Pugno di Rabbia', 'close-combat': 'Zuffa', 'shadow-punch': 'Ombra Pugno',
-    'outrage': 'Oltraggio', 'earthquake': 'Terremoto', 'flamethrower': 'Lanciafiamme',
-    'surf': 'Surf', 'ice-beam': 'Gelo Raggio', 'thunderbolt': 'Fulmine',
+    'seismic-toss': 'Movimento Sismico', 'dig': 'Fossa', 'night-shade': 'Ombra Notturna',
+    'screech': 'Stridio', 'focus-energy': 'Focalenergia', 'metronome': 'Metronomo',
+    'swift': 'Cometone', 'fury-swipes': 'Sfogofuria', 'fire-punch': 'Pugnofuoco',
+    'ice-punch': 'Gelopugno', 'thunder-punch': 'Tuonopugno', 'rage-fist': 'Pugno di Rabbia',
+    'close-combat': 'Zuffa', 'shadow-punch': 'Ombra Pugno', 'outrage': 'Oltraggio',
+    'earthquake': 'Terremoto', 'flamethrower': 'Lanciafiamme', 'surf': 'Surf',
+    'ice-beam': 'Gelo Raggio', 'thunderbolt': 'Fulmine', 'thunder': 'Tuono',
     'psychic': 'Psichico', 'shadow-ball': 'Palla Ombra', 'sludge-bomb': 'Fangobomba',
     'stone-edge': 'Pietrataglio', 'iron-head': 'Zuccata', 'play-rough': 'Carineria'
   };
 
-  let allPokemon = [];
+  let localPokemonList = [];
   let filteredPokemon = [];
   let selectedTypes = [];
   let currentLimit = 48;
@@ -55,8 +54,9 @@
   let pokemonB = null;
   let targetSelection = 'A';
 
-  let statsBonusA = { 'hp': 1, 'attack': 1, 'defense': 1, 'special-attack': 1, 'special-defense': 1, 'speed': 1 };
-  let statsBonusB = { 'hp': 1, 'attack': 1, 'defense': 1, 'special-attack': 1, 'special-defense': 1, 'speed': 1 };
+  // Passini inizializzati a 0
+  let statsBonusA = { 'hp': 0, 'attack': 0, 'defense': 0, 'special-attack': 0, 'special-defense': 0, 'speed': 0 };
+  let statsBonusB = { 'hp': 0, 'attack': 0, 'defense': 0, 'special-attack': 0, 'special-defense': 0, 'speed': 0 };
 
   window.switchAppSection = function (sectionId) {
     const pokedexView = document.getElementById('main-pokedex-view');
@@ -75,7 +75,7 @@
 
   document.addEventListener('DOMContentLoaded', () => {
     initDamageCalcLayout();
-    fetch1351Pokemon();
+    loadPokemonDataset();
   });
 
   function initDamageCalcLayout() {
@@ -87,7 +87,7 @@
     calcContainer.innerHTML = `
       <header style="margin-bottom: 24px; text-align: center;">
         <h1 style="font-size: 2.2rem; font-weight: 800; color: #84cc16;">Calcolo Danni Pokémon</h1>
-        <p style="color: #8e9bb0;">Modulo integrato: Statistiche personalizzate (HP+75, Altre+20), Passini 1-32 e mosse in Italiano.</p>
+        <p style="color: #8e9bb0;">Statistiche (HP+75, Altre+20), Passino (0-32) e mosse catalogate in Italiano per Tipo.</p>
       </header>
 
       <div style="display: flex; justify-content: center; gap: 16px; margin-bottom: 24px;">
@@ -131,7 +131,7 @@
     const container = document.getElementById('type-filters');
     if (!container) return;
     container.innerHTML = TYPES_CONFIG.map(t => `
-      <button class="type-btn" data-type="${t.id}" style="background: #0b0e14; border: 1px solid #26334d; color: #fff; padding: 6px 12px; border-radius: 6px; font-size: 0.75rem; cursor: pointer; transition: background 0.2s;">
+      <button class="type-btn" data-type="${t.id}" style="background: #0b0e14; border: 1px solid #26334d; color: #fff; padding: 6px 12px; border-radius: 6px; font-size: 0.75rem; cursor: pointer;">
         ${t.name}
       </button>
     `).join('');
@@ -143,6 +143,7 @@
           selectedTypes = selectedTypes.filter(t => t !== type);
           btn.style.backgroundColor = '#0b0e14';
           btn.style.borderColor = '#26334d';
+          btn.style.color = '#fff';
         } else if (selectedTypes.length < 2) {
           selectedTypes.push(type);
           btn.style.backgroundColor = '#84cc16';
@@ -184,41 +185,52 @@
     }
   }
 
-  async function fetch1351Pokemon() {
-    try {
-      const res = await fetch('https://pokeapi.co/api/v2/pokemon?limit=1351');
-      const data = await res.json();
-
-      allPokemon = data.results.map((p) => {
-        const parts = p.url.split('/').filter(Boolean);
-        const id = parseInt(parts[parts.length - 1], 10);
-        return {
-          id: id,
-          rawName: p.name,
-          name: p.name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
-          image: `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${id}.png`,
-          types: [] // Verranno valorizzati dinamicamente per permettere il filtro esatto
-        };
-      });
-
-      filteredPokemon = [...allPokemon];
-      renderGrid();
-
-      // Inizializza Pokémon A e B
-      await assignPokemonSlot(979, 'A');
-      await assignPokemonSlot(7, 'B');
-    } catch (err) {
-      console.error('Errore nel caricamento dei 1351 Pokémon:', err);
+  async function loadPokemonDataset() {
+    // Riuso dei dati precaricati da app.js se disponibili per garantire i filtri sui tipi
+    if (window.allPokemonData && window.allPokemonData.length > 0) {
+      localPokemonList = window.allPokemonData;
+    } else if (window.allPokemon && window.allPokemon.length > 0) {
+      localPokemonList = window.allPokemon;
+    } else {
+      try {
+        const res = await fetch('https://pokeapi.co/api/v2/pokemon?limit=1351');
+        const data = await res.json();
+        localPokemonList = data.results.map((p) => {
+          const parts = p.url.split('/').filter(Boolean);
+          const id = parseInt(parts[parts.length - 1], 10);
+          return {
+            id: id,
+            name: p.name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+            image: `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${id}.png`,
+            types: []
+          };
+        });
+      } catch (err) {
+        console.error('Errore caricamento lista:', err);
+      }
     }
+
+    filteredPokemon = [...localPokemonList];
+    renderGrid();
+
+    assignPokemonSlot(979, 'A');
+    assignPokemonSlot(7, 'B');
   }
 
   function applyFilters() {
     const searchVal = document.getElementById('calc-search')?.value.toLowerCase().trim() || '';
-    filteredPokemon = allPokemon.filter(p => {
+
+    filteredPokemon = localPokemonList.filter(p => {
       const matchName = p.name.toLowerCase().includes(searchVal) || String(p.id).includes(searchVal);
-      const matchType = selectedTypes.length === 0 || selectedTypes.every(t => p.types.includes(t));
+      
+      // Se il Pokémon non ha ancora i tipi caricati, non lo escludiamo se non ci sono filtri tipo attivi
+      if (selectedTypes.length === 0) return matchName;
+
+      const pTypes = p.types || [];
+      const matchType = selectedTypes.every(t => pTypes.includes(t));
       return matchName && matchType;
     });
+
     currentLimit = 48;
     renderGrid();
   }
@@ -275,9 +287,9 @@
 
       const extractedTypes = data.types.map(t => t.type.name);
 
-      // Aggiorna i tipi nella lista globale per abilitare i filtri per questo Pokémon
-      const globalPoke = allPokemon.find(p => p.id === id);
-      if (globalPoke) globalPoke.types = extractedTypes;
+      // Sincronizza i tipi con il dataset locale per far funzionare subito i filtri tipo
+      const item = localPokemonList.find(p => p.id === id);
+      if (item) item.types = extractedTypes;
 
       const pokemonObj = {
         id: data.id,
@@ -302,9 +314,8 @@
     }
   }
 
-  // Format e traduzione mossa avanzata
-  function getMoveItalianName(slug) {
-    if (MOVE_DICTIONARY_ITA[slug]) return MOVE_DICTIONARY_ITA[slug];
+  function getFormattedMoveName(slug) {
+    if (MOVE_TRANSLATIONS[slug]) return MOVE_TRANSLATIONS[slug];
     return slug.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
   }
 
@@ -312,19 +323,43 @@
     const container = document.getElementById('content-a');
     if (!container || !pokemonA) return;
 
-    // Genera options in italiano
-    const movesListHtml = pokemonA.moves.map(m => {
+    // Carica i dettagli delle mosse per catalogarle per Tipo
+    const movesDetailed = await Promise.all(pokemonA.moves.slice(0, 40).map(async (m) => {
       const slug = m.move.name;
-      const itaName = getMoveItalianName(slug);
-      return `<option value="${m.move.url}" data-slug="${slug}">${itaName}</option>`;
-    }).join('');
+      try {
+        const res = await fetch(m.move.url);
+        const data = await res.json();
+        const typeName = data.type ? data.type.name : 'normal';
+        const itaNameObj = data.names ? data.names.find(n => n.language.name === 'it') : null;
+        const finalName = itaNameObj ? itaNameObj.name : getFormattedMoveName(slug);
+        return { slug, url: m.move.url, name: finalName, type: typeName, power: data.power || 0 };
+      } catch (e) {
+        return { slug, url: m.move.url, name: getFormattedMoveName(slug), type: 'normal', power: 0 };
+      }
+    }));
 
-    // CALCOLO STATISTICHE CORRETTO: HP (+75), ALTRE (+20) + PASSINO
+    // Raggruppa mosse per tipo
+    const groupedMoves = {};
+    movesDetailed.forEach(m => {
+      if (!groupedMoves[m.type]) groupedMoves[m.type] = [];
+      groupedMoves[m.type].push(m);
+    });
+
+    let selectOptionsHtml = '';
+    for (const [typeKey, movesGroup] of Object.entries(groupedMoves)) {
+      const typeLabelITA = (TYPE_NAMES_ITA[typeKey] || typeKey).toUpperCase();
+      selectOptionsHtml += `<optgroup label="TIPO ${typeLabelITA}">`;
+      movesGroup.forEach(m => {
+        selectOptionsHtml += `<option value="${m.url}" data-power="${m.power}" data-name="${m.name}">[${typeLabelITA}] ${m.name}</option>`;
+      });
+      selectOptionsHtml += `</optgroup>`;
+    }
+
+    // STATISTICHE (BASE + OFFSET + PASSINO 0-32)
     const statsHtml = pokemonA.stats.map(s => {
       const statKey = s.stat.name;
       const baseVal = s.base_stat;
-      const bonusPassino = statsBonusA[statKey] || 1;
-      
+      const bonusPassino = statsBonusA[statKey] || 0;
       const offset = (statKey === 'hp') ? 75 : 20;
       const totalVal = baseVal + offset + bonusPassino;
 
@@ -337,7 +372,7 @@
           </div>
           <div style="display: flex; align-items: center; gap: 4px;">
             <label style="font-size: 0.7rem; color: #8e9bb0;">Passino:</label>
-            <input type="number" min="1" max="32" value="${bonusPassino}" onchange="window.updatePassino('A', '${statKey}', this.value)" style="width: 45px; background: #0b0e14; border: 1px solid #26334d; color: #fff; text-align: center; border-radius: 4px; padding: 2px;">
+            <input type="number" min="0" max="32" value="${bonusPassino}" onchange="window.updatePassino('A', '${statKey}', this.value)" style="width: 45px; background: #0b0e14; border: 1px solid #26334d; color: #fff; text-align: center; border-radius: 4px; padding: 2px;">
           </div>
         </div>
       `;
@@ -353,9 +388,9 @@
       </div>
 
       <div style="background: #0b0e14; padding: 12px; border-radius: 8px; margin-bottom: 16px; border: 1px solid #26334d;">
-        <label style="font-size: 0.75rem; font-weight: 700; color: #8e9bb0; display: block; margin-bottom: 6px;">MOSSA ATTACCO (ITALIANO)</label>
-        <select id="select-move-a" onchange="window.loadItalianMoveDetails(this)" style="width: 100%; background: #121824; border: 1px solid #26334d; color: #84cc16; padding: 8px; border-radius: 6px; font-size: 0.85rem; font-weight: 700; margin-bottom: 8px;">
-          ${movesListHtml}
+        <label style="font-size: 0.75rem; font-weight: 700; color: #8e9bb0; display: block; margin-bottom: 6px;">MOSSE CATALOGATE PER TIPO (ITALIANO)</label>
+        <select id="select-move-a" onchange="window.updateMoveSelectionInfo(this)" style="width: 100%; background: #121824; border: 1px solid #26334d; color: #84cc16; padding: 8px; border-radius: 6px; font-size: 0.85rem; font-weight: 700; margin-bottom: 8px;">
+          ${selectOptionsHtml}
         </select>
         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;">
           <span id="move-ita-name" style="font-weight: 700; color: #84cc16;">Mossa: -</span>
@@ -363,24 +398,23 @@
         </div>
       </div>
 
-      <div style="font-size: 0.75rem; font-weight: 700; color: #84cc16; margin-bottom: 8px;">STATISTICHE (BASE + OFFSET + PASSINO 1-32)</div>
+      <div style="font-size: 0.75rem; font-weight: 700; color: #84cc16; margin-bottom: 8px;">STATISTICHE (BASE + OFFSET + PASSINO 0-32)</div>
       <div>${statsHtml}</div>
     `;
 
     const selectEl = document.getElementById('select-move-a');
-    if (selectEl) loadItalianMoveDetails(selectEl);
+    if (selectEl) window.updateMoveSelectionInfo(selectEl);
   }
 
   function renderPokemonB() {
     const container = document.getElementById('content-b');
     if (!container || !pokemonB) return;
 
-    // CALCOLO STATISTICHE CORRETTO: HP (+75), ALTRE (+20) + PASSINO
+    // STATISTICHE (BASE + OFFSET + PASSINO 0-32)
     const statsHtml = pokemonB.stats.map(s => {
       const statKey = s.stat.name;
       const baseVal = s.base_stat;
-      const bonusPassino = statsBonusB[statKey] || 1;
-
+      const bonusPassino = statsBonusB[statKey] || 0;
       const offset = (statKey === 'hp') ? 75 : 20;
       const totalVal = baseVal + offset + bonusPassino;
 
@@ -393,7 +427,7 @@
           </div>
           <div style="display: flex; align-items: center; gap: 4px;">
             <label style="font-size: 0.7rem; color: #8e9bb0;">Passino:</label>
-            <input type="number" min="1" max="32" value="${bonusPassino}" onchange="window.updatePassino('B', '${statKey}', this.value)" style="width: 45px; background: #0b0e14; border: 1px solid #26334d; color: #fff; text-align: center; border-radius: 4px; padding: 2px;">
+            <input type="number" min="0" max="32" value="${bonusPassino}" onchange="window.updatePassino('B', '${statKey}', this.value)" style="width: 45px; background: #0b0e14; border: 1px solid #26334d; color: #fff; text-align: center; border-radius: 4px; padding: 2px;">
           </div>
         </div>
       `;
@@ -408,14 +442,14 @@
         </div>
       </div>
 
-      <div style="font-size: 0.75rem; font-weight: 700; color: #4f46e5; margin-bottom: 8px;">STATISTICHE (BASE + OFFSET + PASSINO 1-32)</div>
+      <div style="font-size: 0.75rem; font-weight: 700; color: #4f46e5; margin-bottom: 8px;">STATISTICHE (BASE + OFFSET + PASSINO 0-32)</div>
       <div>${statsHtml}</div>
     `;
   }
 
   window.updatePassino = function(slot, statKey, value) {
     let numVal = parseInt(value, 10);
-    if (isNaN(numVal) || numVal < 1) numVal = 1;
+    if (isNaN(numVal) || numVal < 0) numVal = 0;
     if (numVal > 32) numVal = 32;
 
     if (slot === 'A') {
@@ -427,34 +461,19 @@
     }
   };
 
-  // ESTRAZIONE NOME UFFICIALE IN ITALIANO CON FALLBACK FORZATO
-  window.loadItalianMoveDetails = async function(selectElement) {
-    if (!selectElement || !selectElement.value) return;
-    const moveUrl = selectElement.value;
-    const selectedOption = selectElement.options[selectElement.selectedIndex];
-    const slug = selectedOption ? selectedOption.getAttribute('data-slug') : '';
+  window.updateMoveSelectionInfo = function(selectElement) {
+    if (!selectElement || !selectElement.options.length) return;
+    const opt = selectElement.options[selectElement.selectedIndex];
+    if (!opt) return;
 
-    try {
-      const res = await fetch(moveUrl);
-      const data = await res.json();
+    const moveName = opt.getAttribute('data-name') || opt.textContent;
+    const movePower = opt.getAttribute('data-power') || '0';
 
-      const itaEntry = data.names ? data.names.find(n => n.language.name === 'it') : null;
-      const itaName = itaEntry ? itaEntry.name : getMoveItalianName(slug);
-      const movePower = data.power !== null ? data.power : 0;
+    const nameEl = document.getElementById('move-ita-name');
+    const powerEl = document.getElementById('move-power-val');
 
-      // Aggiorna anche l'opzione nel menu a tendina se era rimasta in inglese
-      if (selectedOption && itaEntry) {
-        selectedOption.textContent = itaEntry.name;
-      }
-
-      const nameEl = document.getElementById('move-ita-name');
-      const powerEl = document.getElementById('move-power-val');
-
-      if (nameEl) nameEl.textContent = `Mossa: ${itaName}`;
-      if (powerEl) powerEl.textContent = `Potenza Reale: ${movePower}`;
-    } catch (e) {
-      console.error('Errore dettagli mossa:', e);
-    }
+    if (nameEl) nameEl.textContent = `Mossa: ${moveName}`;
+    if (powerEl) powerEl.textContent = `Potenza Reale: ${movePower}`;
   };
 
 })();
