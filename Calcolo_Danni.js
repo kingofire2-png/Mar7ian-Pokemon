@@ -1,5 +1,5 @@
 /**
- * Calcolo_Danni.js - Versione Ottimizzata con Feedback Visivo e Traduzione Mosse
+ * Calcolo_Danni.js - Versione Corretta (Filtri Tipi, Traduzione Integrale Mosse, Statistiche +75/+20)
  */
 
 (function () {
@@ -30,8 +30,11 @@
     'special-attack': 'Sp. Atk', 'special-defense': 'Sp. Def', 'speed': 'Velocità'
   };
 
-  // Dizionario rapido per traduzione immediata delle mosse più comuni nel menu
-  const MOVE_TRANSLATIONS = {
+  // Dizionario esteso di traduzione per le mosse
+  const MOVE_DICTIONARY_ITA = {
+    'dig': 'Fossa', 'seismic-toss': 'Movimento Sismico', 'screech': 'Stridio',
+    'focus-energy': 'Focalenergia', 'metronome': 'Metronomo', 'swift': 'Cometone',
+    'fury-swipes': 'Sfogofuria', 'night-shade': 'Ombra Notturna', 'thunder': 'Tuono',
     'fire-punch': 'Pugnofuoco', 'ice-punch': 'Gelopugno', 'thunder-punch': 'Tuonopugno',
     'scratch': 'Graffio', 'body-slam': 'Corpo a Corpo', 'take-down': 'Ridotto',
     'thrash': 'Colpo', 'double-edge': 'Sdoppiatore', 'leer': 'Peculiare',
@@ -55,7 +58,6 @@
   let statsBonusA = { 'hp': 1, 'attack': 1, 'defense': 1, 'special-attack': 1, 'special-defense': 1, 'speed': 1 };
   let statsBonusB = { 'hp': 1, 'attack': 1, 'defense': 1, 'special-attack': 1, 'special-defense': 1, 'speed': 1 };
 
-  // Switch della sezione principale dal menu a tendina
   window.switchAppSection = function (sectionId) {
     const pokedexView = document.getElementById('main-pokedex-view');
     const calcView = document.getElementById('damage-calc-view');
@@ -85,10 +87,9 @@
     calcContainer.innerHTML = `
       <header style="margin-bottom: 24px; text-align: center;">
         <h1 style="font-size: 2.2rem; font-weight: 800; color: #84cc16;">Calcolo Danni Pokémon</h1>
-        <p style="color: #8e9bb0;">Modulo integrato: 1351 Pokémon, passini 1-32 e mosse in Italiano.</p>
+        <p style="color: #8e9bb0;">Modulo integrato: Statistiche personalizzate (HP+75, Altre+20), Passini 1-32 e mosse in Italiano.</p>
       </header>
 
-      <!-- Selezione Target Attaccante / Difensore -->
       <div style="display: flex; justify-content: center; gap: 16px; margin-bottom: 24px;">
         <button id="btn-target-a" style="padding: 10px 20px; border-radius: 8px; font-weight: 700; cursor: pointer; border: 2px solid #84cc16; background: #84cc16; color: #000;">
           Target: Pokémon A (Attaccante)
@@ -98,7 +99,6 @@
         </button>
       </div>
 
-      <!-- Box Pokémon A e B -->
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-bottom: 32px;">
         <div id="box-a" style="background: #182030; border: 2px solid #84cc16; border-radius: 12px; padding: 20px;">
           <h3 style="color: #84cc16; text-align: center; margin-bottom: 12px;">POKÉMON A (ATTACCANTE)</h3>
@@ -110,7 +110,6 @@
         </div>
       </div>
 
-      <!-- Filtri e Lista 1351 Pokémon -->
       <div style="background: #121824; border: 1px solid #26334d; border-radius: 12px; padding: 20px;">
         <div style="margin-bottom: 16px;">
           <input type="text" id="calc-search" placeholder="Cerca per nome o numero (es. Annihilape, #0979)..." style="width: 100%; padding: 12px; background: #0b0e14; border: 1px solid #26334d; border-radius: 8px; color: #fff;">
@@ -132,7 +131,7 @@
     const container = document.getElementById('type-filters');
     if (!container) return;
     container.innerHTML = TYPES_CONFIG.map(t => `
-      <button class="type-btn" data-type="${t.id}" style="background: #0b0e14; border: 1px solid #26334d; color: #fff; padding: 6px 12px; border-radius: 6px; font-size: 0.75rem; cursor: pointer;">
+      <button class="type-btn" data-type="${t.id}" style="background: #0b0e14; border: 1px solid #26334d; color: #fff; padding: 6px 12px; border-radius: 6px; font-size: 0.75rem; cursor: pointer; transition: background 0.2s;">
         ${t.name}
       </button>
     `).join('');
@@ -143,9 +142,12 @@
         if (selectedTypes.includes(type)) {
           selectedTypes = selectedTypes.filter(t => t !== type);
           btn.style.backgroundColor = '#0b0e14';
+          btn.style.borderColor = '#26334d';
         } else if (selectedTypes.length < 2) {
           selectedTypes.push(type);
           btn.style.backgroundColor = '#84cc16';
+          btn.style.borderColor = '#84cc16';
+          btn.style.color = '#000';
         }
         applyFilters();
       });
@@ -195,14 +197,16 @@
           rawName: p.name,
           name: p.name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
           image: `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${id}.png`,
-          types: []
+          types: [] // Verranno valorizzati dinamicamente per permettere il filtro esatto
         };
       });
 
       filteredPokemon = [...allPokemon];
       renderGrid();
-      assignPokemonSlot(979, 'A'); // Default Annihilape per A
-      assignPokemonSlot(7, 'B');   // Default Squirtle per B
+
+      // Inizializza Pokémon A e B
+      await assignPokemonSlot(979, 'A');
+      await assignPokemonSlot(7, 'B');
     } catch (err) {
       console.error('Errore nel caricamento dei 1351 Pokémon:', err);
     }
@@ -219,7 +223,6 @@
     renderGrid();
   }
 
-  // RENDER DELLA GRIGLIA CON FEEDBACK VISIVO (BORDO SELEZIONATO)
   function renderGrid() {
     const container = document.getElementById('pokemon-grid');
     const countEl = document.getElementById('calc-pokemon-count');
@@ -270,11 +273,17 @@
       const res = await fetch(`https://pokeapi.co/api/v2/pokemon/${id}`);
       const data = await res.json();
 
+      const extractedTypes = data.types.map(t => t.type.name);
+
+      // Aggiorna i tipi nella lista globale per abilitare i filtri per questo Pokémon
+      const globalPoke = allPokemon.find(p => p.id === id);
+      if (globalPoke) globalPoke.types = extractedTypes;
+
       const pokemonObj = {
         id: data.id,
         name: data.name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
         image: data.sprites.other['official-artwork'].front_default || data.sprites.front_default,
-        types: data.types.map(t => t.type.name),
+        types: extractedTypes,
         stats: data.stats,
         moves: data.moves
       };
@@ -287,16 +296,15 @@
         renderPokemonB();
       }
 
-      // Aggiorna la griglia per mostrare subito il bordo sul Pokémon cliccato
       renderGrid();
     } catch (e) {
       console.error('Errore assegnazione Pokémon:', e);
     }
   }
 
-  // TRADUZIONE DELLE MOSSE PER IL MENU A TENDINA
-  function formatMoveOptionName(slug) {
-    if (MOVE_TRANSLATIONS[slug]) return MOVE_TRANSLATIONS[slug];
+  // Format e traduzione mossa avanzata
+  function getMoveItalianName(slug) {
+    if (MOVE_DICTIONARY_ITA[slug]) return MOVE_DICTIONARY_ITA[slug];
     return slug.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
   }
 
@@ -304,29 +312,32 @@
     const container = document.getElementById('content-a');
     if (!container || !pokemonA) return;
 
+    // Genera options in italiano
     const movesListHtml = pokemonA.moves.map(m => {
       const slug = m.move.name;
-      const formattedName = formatMoveOptionName(slug);
-      return `<option value="${m.move.url}">${formattedName}</option>`;
+      const itaName = getMoveItalianName(slug);
+      return `<option value="${m.move.url}" data-slug="${slug}">${itaName}</option>`;
     }).join('');
 
+    // CALCOLO STATISTICHE CORRETTO: HP (+75), ALTRE (+20) + PASSINO
     const statsHtml = pokemonA.stats.map(s => {
       const statKey = s.stat.name;
       const baseVal = s.base_stat;
-      const bonus = statsBonusA[statKey] || 1;
-      const totalVal = baseVal + bonus;
+      const bonusPassino = statsBonusA[statKey] || 1;
+      
+      const offset = (statKey === 'hp') ? 75 : 20;
+      const totalVal = baseVal + offset + bonusPassino;
 
       return `
         <div style="display: grid; grid-template-columns: 80px 50px 1fr 100px; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 0.8rem;">
           <span style="color: #8e9bb0;">${STAT_NAMES_ITA[statKey] || statKey}</span>
           <span style="font-weight: 700;">${totalVal}</span>
           <div style="background: #0b0e14; height: 6px; border-radius: 3px; overflow: hidden;">
-            <div style="width: ${Math.min(100, (totalVal / 250) * 100)}%; height: 100%; background: #84cc16;"></div>
+            <div style="width: ${Math.min(100, (totalVal / 300) * 100)}%; height: 100%; background: #84cc16;"></div>
           </div>
-          <!-- Input Passino da 1 a 32 -->
           <div style="display: flex; align-items: center; gap: 4px;">
             <label style="font-size: 0.7rem; color: #8e9bb0;">Passino:</label>
-            <input type="number" min="1" max="32" value="${bonus}" onchange="window.updatePassino('A', '${statKey}', this.value)" style="width: 45px; background: #0b0e14; border: 1px solid #26334d; color: #fff; text-align: center; border-radius: 4px; padding: 2px;">
+            <input type="number" min="1" max="32" value="${bonusPassino}" onchange="window.updatePassino('A', '${statKey}', this.value)" style="width: 45px; background: #0b0e14; border: 1px solid #26334d; color: #fff; text-align: center; border-radius: 4px; padding: 2px;">
           </div>
         </div>
       `;
@@ -343,7 +354,7 @@
 
       <div style="background: #0b0e14; padding: 12px; border-radius: 8px; margin-bottom: 16px; border: 1px solid #26334d;">
         <label style="font-size: 0.75rem; font-weight: 700; color: #8e9bb0; display: block; margin-bottom: 6px;">MOSSA ATTACCO (ITALIANO)</label>
-        <select id="select-move-a" onchange="window.loadItalianMoveDetails(this.value)" style="width: 100%; background: #121824; border: 1px solid #26334d; color: #84cc16; padding: 8px; border-radius: 6px; font-size: 0.85rem; font-weight: 700; margin-bottom: 8px;">
+        <select id="select-move-a" onchange="window.loadItalianMoveDetails(this)" style="width: 100%; background: #121824; border: 1px solid #26334d; color: #84cc16; padding: 8px; border-radius: 6px; font-size: 0.85rem; font-weight: 700; margin-bottom: 8px;">
           ${movesListHtml}
         </select>
         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;">
@@ -352,36 +363,37 @@
         </div>
       </div>
 
-      <div style="font-size: 0.75rem; font-weight: 700; color: #84cc16; margin-bottom: 8px;">STATISTICHE (BASE + PASSINO 1-32)</div>
+      <div style="font-size: 0.75rem; font-weight: 700; color: #84cc16; margin-bottom: 8px;">STATISTICHE (BASE + OFFSET + PASSINO 1-32)</div>
       <div>${statsHtml}</div>
     `;
 
-    if (pokemonA.moves.length > 0) {
-      loadItalianMoveDetails(pokemonA.moves[0].move.url);
-    }
+    const selectEl = document.getElementById('select-move-a');
+    if (selectEl) loadItalianMoveDetails(selectEl);
   }
 
   function renderPokemonB() {
     const container = document.getElementById('content-b');
     if (!container || !pokemonB) return;
 
+    // CALCOLO STATISTICHE CORRETTO: HP (+75), ALTRE (+20) + PASSINO
     const statsHtml = pokemonB.stats.map(s => {
       const statKey = s.stat.name;
       const baseVal = s.base_stat;
-      const bonus = statsBonusB[statKey] || 1;
-      const totalVal = baseVal + bonus;
+      const bonusPassino = statsBonusB[statKey] || 1;
+
+      const offset = (statKey === 'hp') ? 75 : 20;
+      const totalVal = baseVal + offset + bonusPassino;
 
       return `
         <div style="display: grid; grid-template-columns: 80px 50px 1fr 100px; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 0.8rem;">
           <span style="color: #8e9bb0;">${STAT_NAMES_ITA[statKey] || statKey}</span>
           <span style="font-weight: 700;">${totalVal}</span>
           <div style="background: #0b0e14; height: 6px; border-radius: 3px; overflow: hidden;">
-            <div style="width: ${Math.min(100, (totalVal / 250) * 100)}%; height: 100%; background: #4f46e5;"></div>
+            <div style="width: ${Math.min(100, (totalVal / 300) * 100)}%; height: 100%; background: #4f46e5;"></div>
           </div>
-          <!-- Input Passino da 1 a 32 -->
           <div style="display: flex; align-items: center; gap: 4px;">
             <label style="font-size: 0.7rem; color: #8e9bb0;">Passino:</label>
-            <input type="number" min="1" max="32" value="${bonus}" onchange="window.updatePassino('B', '${statKey}', this.value)" style="width: 45px; background: #0b0e14; border: 1px solid #26334d; color: #fff; text-align: center; border-radius: 4px; padding: 2px;">
+            <input type="number" min="1" max="32" value="${bonusPassino}" onchange="window.updatePassino('B', '${statKey}', this.value)" style="width: 45px; background: #0b0e14; border: 1px solid #26334d; color: #fff; text-align: center; border-radius: 4px; padding: 2px;">
           </div>
         </div>
       `;
@@ -396,7 +408,7 @@
         </div>
       </div>
 
-      <div style="font-size: 0.75rem; font-weight: 700; color: #4f46e5; margin-bottom: 8px;">STATISTICHE (BASE + PASSINO 1-32)</div>
+      <div style="font-size: 0.75rem; font-weight: 700; color: #4f46e5; margin-bottom: 8px;">STATISTICHE (BASE + OFFSET + PASSINO 1-32)</div>
       <div>${statsHtml}</div>
     `;
   }
@@ -415,15 +427,25 @@
     }
   };
 
-  // CARICAMENTO ED ESTRAZIONE NOME UFFICIALE E POTENZA
-  window.loadItalianMoveDetails = async function(moveUrl) {
+  // ESTRAZIONE NOME UFFICIALE IN ITALIANO CON FALLBACK FORZATO
+  window.loadItalianMoveDetails = async function(selectElement) {
+    if (!selectElement || !selectElement.value) return;
+    const moveUrl = selectElement.value;
+    const selectedOption = selectElement.options[selectElement.selectedIndex];
+    const slug = selectedOption ? selectedOption.getAttribute('data-slug') : '';
+
     try {
       const res = await fetch(moveUrl);
       const data = await res.json();
 
-      const itaEntry = data.names.find(n => n.language.name === 'it');
-      const itaName = itaEntry ? itaEntry.name : data.name;
+      const itaEntry = data.names ? data.names.find(n => n.language.name === 'it') : null;
+      const itaName = itaEntry ? itaEntry.name : getMoveItalianName(slug);
       const movePower = data.power !== null ? data.power : 0;
+
+      // Aggiorna anche l'opzione nel menu a tendina se era rimasta in inglese
+      if (selectedOption && itaEntry) {
+        selectedOption.textContent = itaEntry.name;
+      }
 
       const nameEl = document.getElementById('move-ita-name');
       const powerEl = document.getElementById('move-power-val');
