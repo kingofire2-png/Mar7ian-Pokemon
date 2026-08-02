@@ -1,5 +1,5 @@
 /**
- * Calcolo_Danni.js - Versione Completa (Passino 0-32, Mosse per Tipo in ITA, Filtri integrati con app.js)
+ * Calcolo_Danni.js - Versione con Autocomplete Suggerimenti e Filtri Tipo Funzionanti
  */
 
 (function () {
@@ -54,7 +54,6 @@
   let pokemonB = null;
   let targetSelection = 'A';
 
-  // Passini inizializzati a 0
   let statsBonusA = { 'hp': 0, 'attack': 0, 'defense': 0, 'special-attack': 0, 'special-defense': 0, 'speed': 0 };
   let statsBonusB = { 'hp': 0, 'attack': 0, 'defense': 0, 'special-attack': 0, 'special-defense': 0, 'speed': 0 };
 
@@ -87,7 +86,7 @@
     calcContainer.innerHTML = `
       <header style="margin-bottom: 24px; text-align: center;">
         <h1 style="font-size: 2.2rem; font-weight: 800; color: #84cc16;">Calcolo Danni Pokémon</h1>
-        <p style="color: #8e9bb0;">Statistiche (HP+75, Altre+20), Passino (0-32) e mosse catalogate in Italiano per Tipo.</p>
+        <p style="color: #8e9bb0;">Statistiche (HP+75, Altre+20), Passino (0-32) e ricerca avanzata.</p>
       </header>
 
       <div style="display: flex; justify-content: center; gap: 16px; margin-bottom: 24px;">
@@ -111,9 +110,12 @@
       </div>
 
       <div style="background: #121824; border: 1px solid #26334d; border-radius: 12px; padding: 20px;">
-        <div style="margin-bottom: 16px;">
-          <input type="text" id="calc-search" placeholder="Cerca per nome o numero (es. Annihilape, #0979)..." style="width: 100%; padding: 12px; background: #0b0e14; border: 1px solid #26334d; border-radius: 8px; color: #fff;">
+        <!-- BARRA DI RICERCA CON DROPDOWN AUTOCOMPLETE -->
+        <div style="position: relative; margin-bottom: 16px;">
+          <input type="text" id="calc-search" placeholder="Cerca per nome o numero (es. Annihilape, #0979)..." autocomplete="off" style="width: 100%; padding: 12px; background: #0b0e14; border: 1px solid #26334d; border-radius: 8px; color: #fff;">
+          <div id="calc-suggestions" style="position: absolute; top: 100%; left: 0; right: 0; background: #182030; border: 1px solid #26334d; border-top: none; border-radius: 0 0 8px 8px; max-height: 220px; overflow-y: auto; z-index: 1000; display: none;"></div>
         </div>
+
         <div id="type-filters" style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px;"></div>
         <div style="display: flex; justify-content: space-between; margin-bottom: 12px; color: #8e9bb0; font-size: 0.85rem;">
           <span id="calc-pokemon-count">0 POKÉMON TROVATI</span>
@@ -174,7 +176,18 @@
     }
 
     const searchInput = document.getElementById('calc-search');
-    if (searchInput) searchInput.addEventListener('input', applyFilters);
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => {
+        applyFilters();
+        showAutocompleteSuggestions(e.target.value);
+      });
+
+      document.addEventListener('click', (e) => {
+        if (!searchInput.contains(e.target)) {
+          hideSuggestions();
+        }
+      });
+    }
 
     const loadMore = document.getElementById('btn-load-more');
     if (loadMore) {
@@ -185,8 +198,49 @@
     }
   }
 
+  function showAutocompleteSuggestions(val) {
+    const suggestionsBox = document.getElementById('calc-suggestions');
+    if (!suggestionsBox) return;
+
+    const query = val.toLowerCase().trim();
+    if (!query) {
+      suggestionsBox.style.display = 'none';
+      return;
+    }
+
+    const matches = localPokemonList.filter(p => 
+      p.name.toLowerCase().includes(query) || String(p.id).includes(query)
+    ).slice(0, 8);
+
+    if (matches.length === 0) {
+      suggestionsBox.style.display = 'none';
+      return;
+    }
+
+    suggestionsBox.innerHTML = matches.map(p => `
+      <div class="suggestion-item" onclick="window.calcSelectFromSuggestion(${p.id}, '${p.name.replace(/'/g, "\\'")}')" style="padding: 10px 14px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #26334d; cursor: pointer; color: #fff;">
+        <img src="${p.image}" style="width: 32px; height: 32px; object-fit: contain;" onerror="this.src='https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${p.id}.png'">
+        <span style="font-weight: 600; font-size: 0.9rem;">${p.name}</span>
+        <span style="font-size: 0.75rem; color: #8e9bb0; margin-left: auto;">#${String(p.id).padStart(4, '0')}</span>
+      </div>
+    `).join('');
+
+    suggestionsBox.style.display = 'block';
+  }
+
+  function hideSuggestions() {
+    const suggestionsBox = document.getElementById('calc-suggestions');
+    if (suggestionsBox) suggestionsBox.style.display = 'none';
+  }
+
+  window.calcSelectFromSuggestion = function(id, name) {
+    const searchInput = document.getElementById('calc-search');
+    if (searchInput) searchInput.value = name;
+    hideSuggestions();
+    window.calcAssignPokemon(id);
+  };
+
   async function loadPokemonDataset() {
-    // Riuso dei dati precaricati da app.js se disponibili per garantire i filtri sui tipi
     if (window.allPokemonData && window.allPokemonData.length > 0) {
       localPokemonList = window.allPokemonData;
     } else if (window.allPokemon && window.allPokemon.length > 0) {
@@ -206,15 +260,45 @@
           };
         });
       } catch (err) {
-        console.error('Errore caricamento lista:', err);
+        console.error('Errore caricamento dataset:', err);
       }
     }
 
     filteredPokemon = [...localPokemonList];
     renderGrid();
 
+    // Sincronizza i tipi in background per far funzionare i filtri senza lag
+    fetchTypesForDataset();
+
     assignPokemonSlot(979, 'A');
     assignPokemonSlot(7, 'B');
+  }
+
+  // Pre-caricamento in background dei tipi per il filtraggio avanzato
+  async function fetchTypesForDataset() {
+    try {
+      const res = await fetch('https://pokeapi.co/api/v2/type');
+      const data = await res.json();
+
+      for (const t of data.results) {
+        const tRes = await fetch(t.url);
+        const tData = await tRes.json();
+        const typeName = tData.name;
+
+        tData.pokemon.forEach(pObj => {
+          const parts = pObj.pokemon.url.split('/').filter(Boolean);
+          const pId = parseInt(parts[parts.length - 1], 10);
+          const found = localPokemonList.find(p => p.id === pId);
+          if (found) {
+            if (!found.types) found.types = [];
+            if (!found.types.includes(typeName)) found.types.push(typeName);
+          }
+        });
+      }
+      applyFilters();
+    } catch (e) {
+      console.error('Errore durante la sincronizzazione dei tipi:', e);
+    }
   }
 
   function applyFilters() {
@@ -222,8 +306,6 @@
 
     filteredPokemon = localPokemonList.filter(p => {
       const matchName = p.name.toLowerCase().includes(searchVal) || String(p.id).includes(searchVal);
-      
-      // Se il Pokémon non ha ancora i tipi caricati, non lo escludiamo se non ci sono filtri tipo attivi
       if (selectedTypes.length === 0) return matchName;
 
       const pTypes = p.types || [];
@@ -287,7 +369,6 @@
 
       const extractedTypes = data.types.map(t => t.type.name);
 
-      // Sincronizza i tipi con il dataset locale per far funzionare subito i filtri tipo
       const item = localPokemonList.find(p => p.id === id);
       if (item) item.types = extractedTypes;
 
@@ -323,7 +404,6 @@
     const container = document.getElementById('content-a');
     if (!container || !pokemonA) return;
 
-    // Carica i dettagli delle mosse per catalogarle per Tipo
     const movesDetailed = await Promise.all(pokemonA.moves.slice(0, 40).map(async (m) => {
       const slug = m.move.name;
       try {
@@ -338,7 +418,6 @@
       }
     }));
 
-    // Raggruppa mosse per tipo
     const groupedMoves = {};
     movesDetailed.forEach(m => {
       if (!groupedMoves[m.type]) groupedMoves[m.type] = [];
@@ -355,7 +434,6 @@
       selectOptionsHtml += `</optgroup>`;
     }
 
-    // STATISTICHE (BASE + OFFSET + PASSINO 0-32)
     const statsHtml = pokemonA.stats.map(s => {
       const statKey = s.stat.name;
       const baseVal = s.base_stat;
@@ -410,7 +488,6 @@
     const container = document.getElementById('content-b');
     if (!container || !pokemonB) return;
 
-    // STATISTICHE (BASE + OFFSET + PASSINO 0-32)
     const statsHtml = pokemonB.stats.map(s => {
       const statKey = s.stat.name;
       const baseVal = s.base_stat;
