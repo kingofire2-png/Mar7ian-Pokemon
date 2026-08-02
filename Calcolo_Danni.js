@@ -1,5 +1,5 @@
 /**
- * Calcolo_Danni.js - Sezione Modulare SPA
+ * Calcolo_Danni.js - Versione Ottimizzata con Feedback Visivo e Traduzione Mosse
  */
 
 (function () {
@@ -30,6 +30,19 @@
     'special-attack': 'Sp. Atk', 'special-defense': 'Sp. Def', 'speed': 'Velocità'
   };
 
+  // Dizionario rapido per traduzione immediata delle mosse più comuni nel menu
+  const MOVE_TRANSLATIONS = {
+    'fire-punch': 'Pugnofuoco', 'ice-punch': 'Gelopugno', 'thunder-punch': 'Tuonopugno',
+    'scratch': 'Graffio', 'body-slam': 'Corpo a Corpo', 'take-down': 'Ridotto',
+    'thrash': 'Colpo', 'double-edge': 'Sdoppiatore', 'leer': 'Peculiare',
+    'hyper-beam': 'Iper Raggio', 'low-kick': 'Colpo Basso', 'counter': 'Contropiede',
+    'rage-fist': 'Pugno di Rabbia', 'close-combat': 'Zuffa', 'shadow-punch': 'Ombra Pugno',
+    'outrage': 'Oltraggio', 'earthquake': 'Terremoto', 'flamethrower': 'Lanciafiamme',
+    'surf': 'Surf', 'ice-beam': 'Gelo Raggio', 'thunderbolt': 'Fulmine',
+    'psychic': 'Psichico', 'shadow-ball': 'Palla Ombra', 'sludge-bomb': 'Fangobomba',
+    'stone-edge': 'Pietrataglio', 'iron-head': 'Zuccata', 'play-rough': 'Carineria'
+  };
+
   let allPokemon = [];
   let filteredPokemon = [];
   let selectedTypes = [];
@@ -39,11 +52,10 @@
   let pokemonB = null;
   let targetSelection = 'A';
 
-  // Valori Passini 1-32 per ogni statistica
   let statsBonusA = { 'hp': 1, 'attack': 1, 'defense': 1, 'special-attack': 1, 'special-defense': 1, 'speed': 1 };
   let statsBonusB = { 'hp': 1, 'attack': 1, 'defense': 1, 'special-attack': 1, 'special-defense': 1, 'speed': 1 };
 
-  // Funzione globale per cambiare vista dal Menu a Tendina
+  // Switch della sezione principale dal menu a tendina
   window.switchAppSection = function (sectionId) {
     const pokedexView = document.getElementById('main-pokedex-view');
     const calcView = document.getElementById('damage-calc-view');
@@ -68,12 +80,12 @@
     const calcContainer = document.getElementById('damage-calc-view');
     if (!calcContainer) return;
 
-    calcContainer.style.cssText = 'max-width: 1200px; margin: 20px auto; padding: 20px; font-family: system-ui, sans-serif; color: #f0f4fc;';
+    calcContainer.style.cssText = 'max-width: 1280px; margin: 20px auto; padding: 20px; font-family: system-ui, sans-serif; color: #f0f4fc;';
 
     calcContainer.innerHTML = `
       <header style="margin-bottom: 24px; text-align: center;">
         <h1 style="font-size: 2.2rem; font-weight: 800; color: #84cc16;">Calcolo Danni Pokémon</h1>
-        <p style="color: #8e9bb0;">Modulo integrato: 1351 Pokémon, passini 1-32 e mosse ufficiali in Italiano.</p>
+        <p style="color: #8e9bb0;">Modulo integrato: 1351 Pokémon, passini 1-32 e mosse in Italiano.</p>
       </header>
 
       <!-- Selezione Target Attaccante / Difensore -->
@@ -101,11 +113,11 @@
       <!-- Filtri e Lista 1351 Pokémon -->
       <div style="background: #121824; border: 1px solid #26334d; border-radius: 12px; padding: 20px;">
         <div style="margin-bottom: 16px;">
-          <input type="text" id="calc-search" placeholder="Cerca tra tutti i 1351 Pokémon..." style="width: 100%; padding: 12px; background: #0b0e14; border: 1px solid #26334d; border-radius: 8px; color: #fff;">
+          <input type="text" id="calc-search" placeholder="Cerca per nome o numero (es. Annihilape, #0979)..." style="width: 100%; padding: 12px; background: #0b0e14; border: 1px solid #26334d; border-radius: 8px; color: #fff;">
         </div>
         <div id="type-filters" style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px;"></div>
         <div style="display: flex; justify-content: space-between; margin-bottom: 12px; color: #8e9bb0; font-size: 0.85rem;">
-          <span id="pokemon-count">0 POKÉMON TROVATI</span>
+          <span id="calc-pokemon-count">0 POKÉMON TROVATI</span>
         </div>
         <div id="pokemon-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px;"></div>
         <button id="btn-load-more" style="width: 100%; padding: 12px; margin-top: 16px; background: #182030; border: 1px solid #26334d; color: #fff; border-radius: 8px; cursor: pointer; display: none;">Carica altri</button>
@@ -118,6 +130,7 @@
 
   function renderTypeFilters() {
     const container = document.getElementById('type-filters');
+    if (!container) return;
     container.innerHTML = TYPES_CONFIG.map(t => `
       <button class="type-btn" data-type="${t.id}" style="background: #0b0e14; border: 1px solid #26334d; color: #fff; padding: 6px 12px; border-radius: 6px; font-size: 0.75rem; cursor: pointer;">
         ${t.name}
@@ -143,26 +156,32 @@
     const btnA = document.getElementById('btn-target-a');
     const btnB = document.getElementById('btn-target-b');
 
-    btnA.addEventListener('click', () => {
-      targetSelection = 'A';
-      btnA.style.background = '#84cc16'; btnA.style.borderColor = '#84cc16'; btnA.style.color = '#000';
-      btnB.style.background = '#182030'; btnB.style.borderColor = '#26334d'; btnB.style.color = '#fff';
-    });
+    if (btnA && btnB) {
+      btnA.addEventListener('click', () => {
+        targetSelection = 'A';
+        btnA.style.background = '#84cc16'; btnA.style.borderColor = '#84cc16'; btnA.style.color = '#000';
+        btnB.style.background = '#182030'; btnB.style.borderColor = '#26334d'; btnB.style.color = '#fff';
+      });
 
-    btnB.addEventListener('click', () => {
-      targetSelection = 'B';
-      btnB.style.background = '#4f46e5'; btnB.style.borderColor = '#4f46e5'; btnB.style.color = '#fff';
-      btnA.style.background = '#182030'; btnA.style.borderColor = '#26334d'; btnA.style.color = '#fff';
-    });
+      btnB.addEventListener('click', () => {
+        targetSelection = 'B';
+        btnB.style.background = '#4f46e5'; btnB.style.borderColor = '#4f46e5'; btnB.style.color = '#fff';
+        btnA.style.background = '#182030'; btnA.style.borderColor = '#26334d'; btnA.style.color = '#fff';
+      });
+    }
 
-    document.getElementById('calc-search').addEventListener('input', applyFilters);
-    document.getElementById('btn-load-more').addEventListener('click', () => {
-      currentLimit += 48;
-      renderGrid();
-    });
+    const searchInput = document.getElementById('calc-search');
+    if (searchInput) searchInput.addEventListener('input', applyFilters);
+
+    const loadMore = document.getElementById('btn-load-more');
+    if (loadMore) {
+      loadMore.addEventListener('click', () => {
+        currentLimit += 48;
+        renderGrid();
+      });
+    }
   }
 
-  // Caricamento completo dei 1351 Pokémon
   async function fetch1351Pokemon() {
     try {
       const res = await fetch('https://pokeapi.co/api/v2/pokemon?limit=1351');
@@ -182,17 +201,17 @@
 
       filteredPokemon = [...allPokemon];
       renderGrid();
-      assignPokemonSlot(4, 'A');
-      assignPokemonSlot(7, 'B');
+      assignPokemonSlot(979, 'A'); // Default Annihilape per A
+      assignPokemonSlot(7, 'B');   // Default Squirtle per B
     } catch (err) {
       console.error('Errore nel caricamento dei 1351 Pokémon:', err);
     }
   }
 
   function applyFilters() {
-    const query = document.getElementById('calc-search').value.toLowerCase().trim();
+    const searchVal = document.getElementById('calc-search')?.value.toLowerCase().trim() || '';
     filteredPokemon = allPokemon.filter(p => {
-      const matchName = p.name.toLowerCase().includes(query) || String(p.id).includes(query);
+      const matchName = p.name.toLowerCase().includes(searchVal) || String(p.id).includes(searchVal);
       const matchType = selectedTypes.length === 0 || selectedTypes.every(t => p.types.includes(t));
       return matchName && matchType;
     });
@@ -200,23 +219,48 @@
     renderGrid();
   }
 
+  // RENDER DELLA GRIGLIA CON FEEDBACK VISIVO (BORDO SELEZIONATO)
   function renderGrid() {
     const container = document.getElementById('pokemon-grid');
-    const countEl = document.getElementById('pokemon-count');
+    const countEl = document.getElementById('calc-pokemon-count');
     const loadMoreBtn = document.getElementById('btn-load-more');
 
-    countEl.textContent = `${filteredPokemon.length} POKÉMON TROVATI`;
+    if (!container) return;
+
+    if (countEl) countEl.textContent = `${filteredPokemon.length} POKÉMON TROVATI`;
     const visible = filteredPokemon.slice(0, currentLimit);
 
-    container.innerHTML = visible.map(p => `
-      <button onclick="window.calcAssignPokemon(${p.id})" style="background: #121824; border: 1px solid #26334d; border-radius: 8px; padding: 10px; display: flex; flex-direction: column; align-items: center; cursor: pointer; color: #fff;">
-        <span style="font-size: 0.7rem; color: #8e9bb0; align-self: flex-start;">#${String(p.id).padStart(4, '0')}</span>
-        <img src="${p.image}" alt="${p.name}" style="width: 60px; height: 60px; object-fit: contain;" onerror="this.src='https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${p.id}.png'">
-        <span style="font-size: 0.8rem; font-weight: 600; margin-top: 4px; text-align: center;">${p.name}</span>
-      </button>
-    `).join('');
+    container.innerHTML = visible.map(p => {
+      const isSelectedA = pokemonA && pokemonA.id === p.id;
+      const isSelectedB = pokemonB && pokemonB.id === p.id;
 
-    loadMoreBtn.style.display = currentLimit < filteredPokemon.length ? 'block' : 'none';
+      let borderStyle = '1px solid #26334d';
+      let bgStyle = '#121824';
+      let badgeHtml = '';
+
+      if (isSelectedA) {
+        borderStyle = '2px solid #84cc16';
+        bgStyle = 'rgba(132, 204, 22, 0.15)';
+        badgeHtml = `<span style="background: #84cc16; color: #000; font-weight: 800; font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; margin-bottom: 4px;">TARGET A</span>`;
+      } else if (isSelectedB) {
+        borderStyle = '2px solid #4f46e5';
+        bgStyle = 'rgba(79, 70, 229, 0.15)';
+        badgeHtml = `<span style="background: #4f46e5; color: #fff; font-weight: 800; font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; margin-bottom: 4px;">TARGET B</span>`;
+      }
+
+      return `
+        <button onclick="window.calcAssignPokemon(${p.id})" style="background: ${bgStyle}; border: ${borderStyle}; border-radius: 8px; padding: 10px; display: flex; flex-direction: column; align-items: center; cursor: pointer; color: #fff; transition: all 0.2s ease;">
+          ${badgeHtml}
+          <span style="font-size: 0.7rem; color: #8e9bb0; align-self: flex-start;">#${String(p.id).padStart(4, '0')}</span>
+          <img src="${p.image}" alt="${p.name}" style="width: 60px; height: 60px; object-fit: contain;" onerror="this.src='https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${p.id}.png'">
+          <span style="font-size: 0.8rem; font-weight: 600; margin-top: 4px; text-align: center;">${p.name}</span>
+        </button>
+      `;
+    }).join('');
+
+    if (loadMoreBtn) {
+      loadMoreBtn.style.display = currentLimit < filteredPokemon.length ? 'block' : 'none';
+    }
   }
 
   window.calcAssignPokemon = (id) => assignPokemonSlot(id, targetSelection);
@@ -242,16 +286,29 @@
         pokemonB = pokemonObj;
         renderPokemonB();
       }
+
+      // Aggiorna la griglia per mostrare subito il bordo sul Pokémon cliccato
+      renderGrid();
     } catch (e) {
       console.error('Errore assegnazione Pokémon:', e);
     }
+  }
+
+  // TRADUZIONE DELLE MOSSE PER IL MENU A TENDINA
+  function formatMoveOptionName(slug) {
+    if (MOVE_TRANSLATIONS[slug]) return MOVE_TRANSLATIONS[slug];
+    return slug.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
   }
 
   async function renderPokemonA() {
     const container = document.getElementById('content-a');
     if (!container || !pokemonA) return;
 
-    const movesListHtml = pokemonA.moves.map(m => `<option value="${m.move.url}">${m.move.name}</option>`).join('');
+    const movesListHtml = pokemonA.moves.map(m => {
+      const slug = m.move.name;
+      const formattedName = formatMoveOptionName(slug);
+      return `<option value="${m.move.url}">${formattedName}</option>`;
+    }).join('');
 
     const statsHtml = pokemonA.stats.map(s => {
       const statKey = s.stat.name;
@@ -266,7 +323,7 @@
           <div style="background: #0b0e14; height: 6px; border-radius: 3px; overflow: hidden;">
             <div style="width: ${Math.min(100, (totalVal / 250) * 100)}%; height: 100%; background: #84cc16;"></div>
           </div>
-          <!-- Passino da 1 a 32 -->
+          <!-- Input Passino da 1 a 32 -->
           <div style="display: flex; align-items: center; gap: 4px;">
             <label style="font-size: 0.7rem; color: #8e9bb0;">Passino:</label>
             <input type="number" min="1" max="32" value="${bonus}" onchange="window.updatePassino('A', '${statKey}', this.value)" style="width: 45px; background: #0b0e14; border: 1px solid #26334d; color: #fff; text-align: center; border-radius: 4px; padding: 2px;">
@@ -286,11 +343,11 @@
 
       <div style="background: #0b0e14; padding: 12px; border-radius: 8px; margin-bottom: 16px; border: 1px solid #26334d;">
         <label style="font-size: 0.75rem; font-weight: 700; color: #8e9bb0; display: block; margin-bottom: 6px;">MOSSA ATTACCO (ITALIANO)</label>
-        <select id="select-move-a" onchange="window.loadItalianMoveDetails(this.value)" style="width: 100%; background: #121824; border: 1px solid #26334d; color: #fff; padding: 8px; border-radius: 6px; font-size: 0.85rem; margin-bottom: 8px;">
+        <select id="select-move-a" onchange="window.loadItalianMoveDetails(this.value)" style="width: 100%; background: #121824; border: 1px solid #26334d; color: #84cc16; padding: 8px; border-radius: 6px; font-size: 0.85rem; font-weight: 700; margin-bottom: 8px;">
           ${movesListHtml}
         </select>
         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;">
-          <span id="move-ita-name" style="font-weight: 700; color: #84cc16;">Nome Ita: -</span>
+          <span id="move-ita-name" style="font-weight: 700; color: #84cc16;">Mossa: -</span>
           <span id="move-power-val" style="font-weight: 700; color: #fff;">Potenza Reale: -</span>
         </div>
       </div>
@@ -321,7 +378,7 @@
           <div style="background: #0b0e14; height: 6px; border-radius: 3px; overflow: hidden;">
             <div style="width: ${Math.min(100, (totalVal / 250) * 100)}%; height: 100%; background: #4f46e5;"></div>
           </div>
-          <!-- Passino da 1 a 32 -->
+          <!-- Input Passino da 1 a 32 -->
           <div style="display: flex; align-items: center; gap: 4px;">
             <label style="font-size: 0.7rem; color: #8e9bb0;">Passino:</label>
             <input type="number" min="1" max="32" value="${bonus}" onchange="window.updatePassino('B', '${statKey}', this.value)" style="width: 45px; background: #0b0e14; border: 1px solid #26334d; color: #fff; text-align: center; border-radius: 4px; padding: 2px;">
@@ -358,7 +415,7 @@
     }
   };
 
-  // Carica i dettagli mossa traducendo il nome ed estraendo la potenza originale Pokémon
+  // CARICAMENTO ED ESTRAZIONE NOME UFFICIALE E POTENZA
   window.loadItalianMoveDetails = async function(moveUrl) {
     try {
       const res = await fetch(moveUrl);
