@@ -9,7 +9,7 @@ let pokemonB = null;
 const statsBonusA = { hp: 0, attack: 0, defense: 0, 'special-attack': 0, 'special-defense': 0, speed: 0 };
 const statsBonusB = { hp: 0, attack: 0, defense: 0, 'special-attack': 0, 'special-defense': 0, speed: 0 };
 
-// Mappe di traduzione sicure (verificano se sono già state definite altrove nell'app)
+// Mappe di traduzione sicure (non sovrascrivono quelle globali se già presenti)
 if (typeof window.TYPE_NAMES_ITA === 'undefined') {
   window.TYPE_NAMES_ITA = {
     normal: 'Normale', fire: 'Fuoco', water: 'Acqua', grass: 'Erba',
@@ -241,8 +241,10 @@ window.updateMoveSelectionInfo = function(selectEl) {
   if (powerLabel) powerLabel.textContent = `Potenza: ${power || '-'}`;
 };
 
-// Esposizione per lo switch di sezione se richiamato da HTML
-if (typeof window.switchAppSection === 'undefined') {
+/**
+ * Gestione sicura di switchAppSection: preserva la funzione originale dell'app se già definita
+ */
+if (typeof window.switchAppSection !== 'function') {
   window.switchAppSection = function(section) {
     const calcSection = document.getElementById('calculator-section');
     const pokedexSection = document.getElementById('pokedex-section');
