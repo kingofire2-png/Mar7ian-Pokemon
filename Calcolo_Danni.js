@@ -1,554 +1,236 @@
 /**
- * Calcolo_Danni.js - Versione con Autocomplete, Filtri Tipo e terminologia EV (0-32)
+ * Gestore dell'interfaccia e logica di visualizzazione per il Calcolatore Danni
  */
 
-(function () {
-  'use strict';
+// Stato locale dei Pokémon e dei bonus EV
+let pokemonA = null;
+let pokemonB = null;
 
-  const TYPES_CONFIG = [
-    { id: 'normal', name: 'Normale' }, { id: 'fire', name: 'Fuoco' },
-    { id: 'water', name: 'Acqua' }, { id: 'grass', name: 'Erba' },
-    { id: 'electric', name: 'Elettro' }, { id: 'ice', name: 'Ghiaccio' },
-    { id: 'fighting', name: 'Lotta' }, { id: 'poison', name: 'Veleno' },
-    { id: 'ground', name: 'Terra' }, { id: 'flying', name: 'Volante' },
-    { id: 'psychic', name: 'Psico' }, { id: 'bug', name: 'Coleottero' },
-    { id: 'rock', name: 'Roccia' }, { id: 'ghost', name: 'Spettro' },
-    { id: 'dragon', name: 'Drago' }, { id: 'dark', name: 'Buio' },
-    { id: 'steel', name: 'Acciaio' }, { id: 'fairy', name: 'Folletto' }
-  ];
+const statsBonusA = { hp: 0, attack: 0, defense: 0, 'special-attack': 0, 'special-defense': 0, speed: 0 };
+const statsBonusB = { hp: 0, attack: 0, defense: 0, 'special-attack': 0, 'special-defense': 0, speed: 0 };
 
-  const TYPE_NAMES_ITA = {
-    normal: 'Normale', fire: 'Fuoco', water: 'Acqua', grass: 'Erba',
-    electric: 'Elettro', ice: 'Ghiaccio', fighting: 'Lotta', poison: 'Veleno',
-    ground: 'Terra', flying: 'Volante', psychic: 'Psico', bug: 'Coleottero',
-    rock: 'Roccia', ghost: 'Spettro', dragon: 'Drago', dark: 'Buio',
-    steel: 'Acciaio', fairy: 'Folletto'
-  };
+// Mappe di traduzione per l'interfaccia
+const TYPE_NAMES_ITA = {
+  normal: 'Normale', fire: 'Fuoco', water: 'Acqua', grass: 'Erba',
+  electric: 'Elettro', ice: 'Ghiaccio', fighting: 'Lotta', poison: 'Veleno',
+  ground: 'Terra', flying: 'Volante', psychic: 'Psico', bug: 'Coleottero',
+  rock: 'Roccia', ghost: 'Spettro', dragon: 'Drago', dark: 'Buio',
+  steel: 'Acciaio', fairy: 'Folletto'
+};
 
-  const STAT_NAMES_ITA = {
-    'hp': 'PS', 'attack': 'Attacco', 'defense': 'Difesa',
-    'special-attack': 'Sp. Atk', 'special-defense': 'Sp. Def', 'speed': 'Velocità'
-  };
+const STAT_NAMES_ITA = {
+  hp: 'PS', attack: 'Attacco', defense: 'Difesa',
+  'special-attack': 'Att. Sp.', 'special-defense': 'Dif. Sp.', speed: 'Velocità'
+};
 
-  const MOVE_TRANSLATIONS = {
-    'scratch': 'Graffio', 'body-slam': 'Corpo a Corpo', 'take-down': 'Ridotto',
-    'thrash': 'Colpo', 'double-edge': 'Sdoppiatore', 'leer': 'Peculiare',
-    'hyper-beam': 'Iper Raggio', 'low-kick': 'Colpo Basso', 'counter': 'Contropiede',
-    'seismic-toss': 'Movimento Sismico', 'dig': 'Fossa', 'night-shade': 'Ombra Notturna',
-    'screech': 'Stridio', 'focus-energy': 'Focalenergia', 'metronome': 'Metronomo',
-    'swift': 'Cometone', 'fury-swipes': 'Sfogofuria', 'fire-punch': 'Pugnofuoco',
-    'ice-punch': 'Gelopugno', 'thunder-punch': 'Tuonopugno', 'rage-fist': 'Pugno di Rabbia',
-    'close-combat': 'Zuffa', 'shadow-punch': 'Ombra Pugno', 'outrage': 'Oltraggio',
-    'earthquake': 'Terremoto', 'flamethrower': 'Lanciafiamme', 'surf': 'Surf',
-    'ice-beam': 'Gelo Raggio', 'thunderbolt': 'Fulmine', 'thunder': 'Tuono',
-    'psychic': 'Psichico', 'shadow-ball': 'Palla Ombra', 'sludge-bomb': 'Fangobomba',
-    'stone-edge': 'Pietrataglio', 'iron-head': 'Zuccata', 'play-rough': 'Carineria'
-  };
+function getFormattedMoveName(slug) {
+  return slug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
 
-  let localPokemonList = [];
-  let filteredPokemon = [];
-  let selectedTypes = [];
-  let currentLimit = 48;
+/**
+ * Assegna il Pokémon al relativo slot (A o B) e avvia il rendering
+ */
+async function assignPokemonSlot(id, slot) {
+  try {
+    const res = await fetch(`https://pokeapi.co/api/v2/pokemon/${id}`);
+    const data = await res.json();
 
-  let pokemonA = null;
-  let pokemonB = null;
-  let targetSelection = 'A';
+    const extractedTypes = data.types.map(t => t.type.name);
 
-  let statsBonusA = { 'hp': 0, 'attack': 0, 'defense': 0, 'special-attack': 0, 'special-defense': 0, 'speed': 0 };
-  let statsBonusB = { 'hp': 0, 'attack': 0, 'defense': 0, 'special-attack': 0, 'special-defense': 0, 'speed': 0 };
-
-  window.switchAppSection = function (sectionId) {
-    const pokedexView = document.getElementById('main-pokedex-view');
-    const calcView = document.getElementById('damage-calc-view');
-
-    if (!pokedexView || !calcView) return;
-
-    if (sectionId === 'damage-calc') {
-      pokedexView.style.display = 'none';
-      calcView.style.display = 'block';
-    } else {
-      calcView.style.display = 'none';
-      pokedexView.style.display = 'block';
-    }
-  };
-
-  document.addEventListener('DOMContentLoaded', () => {
-    initDamageCalcLayout();
-    loadPokemonDataset();
-  });
-
-  function initDamageCalcLayout() {
-    const calcContainer = document.getElementById('damage-calc-view');
-    if (!calcContainer) return;
-
-    calcContainer.style.cssText = 'max-width: 1280px; margin: 20px auto; padding: 20px; font-family: system-ui, sans-serif; color: #f0f4fc;';
-
-    calcContainer.innerHTML = `
-      <header style="margin-bottom: 24px; text-align: center;">
-        <h1 style="font-size: 2.2rem; font-weight: 800; color: #84cc16;">Calcolo Danni Pokémon</h1>
-        <p style="color: #8e9bb0;">Statistiche (HP+75, Altre+20), EV (0-32) e ricerca avanzata.</p>
-      </header>
-
-      <div style="display: flex; justify-content: center; gap: 16px; margin-bottom: 24px;">
-        <button id="btn-target-a" style="padding: 10px 20px; border-radius: 8px; font-weight: 700; cursor: pointer; border: 2px solid #84cc16; background: #84cc16; color: #000;">
-          Target: Pokémon A (Attaccante)
-        </button>
-        <button id="btn-target-b" style="padding: 10px 20px; border-radius: 8px; font-weight: 700; cursor: pointer; border: 2px solid #26334d; background: #182030; color: #fff;">
-          Target: Pokémon B (Difensore)
-        </button>
-      </div>
-
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-bottom: 32px;">
-        <div id="box-a" style="background: #182030; border: 2px solid #84cc16; border-radius: 12px; padding: 20px;">
-          <h3 style="color: #84cc16; text-align: center; margin-bottom: 12px;">POKÉMON A (ATTACCANTE)</h3>
-          <div id="content-a"><p style="text-align: center; color: #8e9bb0;">Seleziona un Pokémon dalla lista sottostante</p></div>
-        </div>
-        <div id="box-b" style="background: #182030; border: 2px solid #26334d; border-radius: 12px; padding: 20px;">
-          <h3 style="color: #4f46e5; text-align: center; margin-bottom: 12px;">POKÉMON B (DIFENSORE)</h3>
-          <div id="content-b"><p style="text-align: center; color: #8e9bb0;">Seleziona un Pokémon dalla lista sottostante</p></div>
-        </div>
-      </div>
-
-      <div style="background: #121824; border: 1px solid #26334d; border-radius: 12px; padding: 20px;">
-        <!-- BARRA DI RICERCA CON DROPDOWN AUTOCOMPLETE -->
-        <div style="position: relative; margin-bottom: 16px;">
-          <input type="text" id="calc-search" placeholder="Cerca per nome o numero (es. Annihilape, #0979)..." autocomplete="off" style="width: 100%; padding: 12px; background: #0b0e14; border: 1px solid #26334d; border-radius: 8px; color: #fff;">
-          <div id="calc-suggestions" style="position: absolute; top: 100%; left: 0; right: 0; background: #182030; border: 1px solid #26334d; border-top: none; border-radius: 0 0 8px 8px; max-height: 220px; overflow-y: auto; z-index: 1000; display: none;"></div>
-        </div>
-
-        <div id="type-filters" style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px;"></div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 12px; color: #8e9bb0; font-size: 0.85rem;">
-          <span id="calc-pokemon-count">0 POKÉMON TROVATI</span>
-        </div>
-        <div id="pokemon-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px;"></div>
-        <button id="btn-load-more" style="width: 100%; padding: 12px; margin-top: 16px; background: #182030; border: 1px solid #26334d; color: #fff; border-radius: 8px; cursor: pointer; display: none;">Carica altri</button>
-      </div>
-    `;
-
-    renderTypeFilters();
-    setupTargetControls();
-  }
-
-  function renderTypeFilters() {
-    const container = document.getElementById('type-filters');
-    if (!container) return;
-    container.innerHTML = TYPES_CONFIG.map(t => `
-      <button class="type-btn" data-type="${t.id}" style="background: #0b0e14; border: 1px solid #26334d; color: #fff; padding: 6px 12px; border-radius: 6px; font-size: 0.75rem; cursor: pointer;">
-        ${t.name}
-      </button>
-    `).join('');
-
-    container.querySelectorAll('.type-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const type = btn.getAttribute('data-type');
-        if (selectedTypes.includes(type)) {
-          selectedTypes = selectedTypes.filter(t => t !== type);
-          btn.style.backgroundColor = '#0b0e14';
-          btn.style.borderColor = '#26334d';
-          btn.style.color = '#fff';
-        } else if (selectedTypes.length < 2) {
-          selectedTypes.push(type);
-          btn.style.backgroundColor = '#84cc16';
-          btn.style.borderColor = '#84cc16';
-          btn.style.color = '#000';
-        }
-        applyFilters();
-      });
-    });
-  }
-
-  function setupTargetControls() {
-    const btnA = document.getElementById('btn-target-a');
-    const btnB = document.getElementById('btn-target-b');
-
-    if (btnA && btnB) {
-      btnA.addEventListener('click', () => {
-        targetSelection = 'A';
-        btnA.style.background = '#84cc16'; btnA.style.borderColor = '#84cc16'; btnA.style.color = '#000';
-        btnB.style.background = '#182030'; btnB.style.borderColor = '#26334d'; btnB.style.color = '#fff';
-      });
-
-      btnB.addEventListener('click', () => {
-        targetSelection = 'B';
-        btnB.style.background = '#4f46e5'; btnB.style.borderColor = '#4f46e5'; btnB.style.color = '#fff';
-        btnA.style.background = '#182030'; btnA.style.borderColor = '#26334d'; btnA.style.color = '#fff';
-      });
-    }
-
-    const searchInput = document.getElementById('calc-search');
-    if (searchInput) {
-      searchInput.addEventListener('input', (e) => {
-        applyFilters();
-        showAutocompleteSuggestions(e.target.value);
-      });
-
-      document.addEventListener('click', (e) => {
-        if (!searchInput.contains(e.target)) {
-          hideSuggestions();
-        }
-      });
-    }
-
-    const loadMore = document.getElementById('btn-load-more');
-    if (loadMore) {
-      loadMore.addEventListener('click', () => {
-        currentLimit += 48;
-        renderGrid();
-      });
-    }
-  }
-
-  function showAutocompleteSuggestions(val) {
-    const suggestionsBox = document.getElementById('calc-suggestions');
-    if (!suggestionsBox) return;
-
-    const query = val.toLowerCase().trim();
-    if (!query) {
-      suggestionsBox.style.display = 'none';
-      return;
-    }
-
-    const matches = localPokemonList.filter(p => 
-      p.name.toLowerCase().includes(query) || String(p.id).includes(query)
-    ).slice(0, 8);
-
-    if (matches.length === 0) {
-      suggestionsBox.style.display = 'none';
-      return;
-    }
-
-    suggestionsBox.innerHTML = matches.map(p => `
-      <div class="suggestion-item" onclick="window.calcSelectFromSuggestion(${p.id}, '${p.name.replace(/'/g, "\\'")}')" style="padding: 10px 14px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #26334d; cursor: pointer; color: #fff;">
-        <img src="${p.image}" style="width: 32px; height: 32px; object-fit: contain;" onerror="this.src='https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${p.id}.png'">
-        <span style="font-weight: 600; font-size: 0.9rem;">${p.name}</span>
-        <span style="font-size: 0.75rem; color: #8e9bb0; margin-left: auto;">#${String(p.id).padStart(4, '0')}</span>
-      </div>
-    `).join('');
-
-    suggestionsBox.style.display = 'block';
-  }
-
-  function hideSuggestions() {
-    const suggestionsBox = document.getElementById('calc-suggestions');
-    if (suggestionsBox) suggestionsBox.style.display = 'none';
-  }
-
-  window.calcSelectFromSuggestion = function(id, name) {
-    const searchInput = document.getElementById('calc-search');
-    if (searchInput) searchInput.value = name;
-    hideSuggestions();
-    window.calcAssignPokemon(id);
-  };
-
-  async function loadPokemonDataset() {
-    if (window.allPokemonData && window.allPokemonData.length > 0) {
-      localPokemonList = window.allPokemonData;
-    } else if (window.allPokemon && window.allPokemon.length > 0) {
-      localPokemonList = window.allPokemon;
-    } else {
-      try {
-        const res = await fetch('https://pokeapi.co/api/v2/pokemon?limit=1351');
-        const data = await res.json();
-        localPokemonList = data.results.map((p) => {
-          const parts = p.url.split('/').filter(Boolean);
-          const id = parseInt(parts[parts.length - 1], 10);
-          return {
-            id: id,
-            name: p.name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
-            image: `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${id}.png`,
-            types: []
-          };
-        });
-      } catch (err) {
-        console.error('Errore caricamento dataset:', err);
-      }
-    }
-
-    filteredPokemon = [...localPokemonList];
-    renderGrid();
-
-    fetchTypesForDataset();
-
-    assignPokemonSlot(979, 'A');
-    assignPokemonSlot(7, 'B');
-  }
-
-  async function fetchTypesForDataset() {
-    try {
-      const res = await fetch('https://pokeapi.co/api/v2/type');
-      const data = await res.json();
-
-      for (const t of data.results) {
-        const tRes = await fetch(t.url);
-        const tData = await tRes.json();
-        const typeName = tData.name;
-
-        tData.pokemon.forEach(pObj => {
-          const parts = pObj.pokemon.url.split('/').filter(Boolean);
-          const pId = parseInt(parts[parts.length - 1], 10);
-          const found = localPokemonList.find(p => p.id === pId);
-          if (found) {
-            if (!found.types) found.types = [];
-            if (!found.types.includes(typeName)) found.types.push(typeName);
-          }
-        });
-      }
-      applyFilters();
-    } catch (e) {
-      console.error('Errore durante la sincronizzazione dei tipi:', e);
-    }
-  }
-
-  function applyFilters() {
-    const searchVal = document.getElementById('calc-search')?.value.toLowerCase().trim() || '';
-
-    filteredPokemon = localPokemonList.filter(p => {
-      const matchName = p.name.toLowerCase().includes(searchVal) || String(p.id).includes(searchVal);
-      if (selectedTypes.length === 0) return matchName;
-
-      const pTypes = p.types || [];
-      const matchType = selectedTypes.every(t => pTypes.includes(t));
-      return matchName && matchType;
-    });
-
-    currentLimit = 48;
-    renderGrid();
-  }
-
-  function renderGrid() {
-    const container = document.getElementById('pokemon-grid');
-    const countEl = document.getElementById('calc-pokemon-count');
-    const loadMoreBtn = document.getElementById('btn-load-more');
-
-    if (!container) return;
-
-    if (countEl) countEl.textContent = `${filteredPokemon.length} POKÉMON TROVATI`;
-    const visible = filteredPokemon.slice(0, currentLimit);
-
-    container.innerHTML = visible.map(p => {
-      const isSelectedA = pokemonA && pokemonA.id === p.id;
-      const isSelectedB = pokemonB && pokemonB.id === p.id;
-
-      let borderStyle = '1px solid #26334d';
-      let bgStyle = '#121824';
-      let badgeHtml = '';
-
-      if (isSelectedA) {
-        borderStyle = '2px solid #84cc16';
-        bgStyle = 'rgba(132, 204, 22, 0.15)';
-        badgeHtml = `<span style="background: #84cc16; color: #000; font-weight: 800; font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; margin-bottom: 4px;">TARGET A</span>`;
-      } else if (isSelectedB) {
-        borderStyle = '2px solid #4f46e5';
-        bgStyle = 'rgba(79, 70, 229, 0.15)';
-        badgeHtml = `<span style="background: #4f46e5; color: #fff; font-weight: 800; font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; margin-bottom: 4px;">TARGET B</span>`;
-      }
-
-      return `
-        <button onclick="window.calcAssignPokemon(${p.id})" style="background: ${bgStyle}; border: ${borderStyle}; border-radius: 8px; padding: 10px; display: flex; flex-direction: column; align-items: center; cursor: pointer; color: #fff; transition: all 0.2s ease;">
-          ${badgeHtml}
-          <span style="font-size: 0.7rem; color: #8e9bb0; align-self: flex-start;">#${String(p.id).padStart(4, '0')}</span>
-          <img src="${p.image}" alt="${p.name}" style="width: 60px; height: 60px; object-fit: contain;" onerror="this.src='https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${p.id}.png'">
-          <span style="font-size: 0.8rem; font-weight: 600; margin-top: 4px; text-align: center;">${p.name}</span>
-        </button>
-      `;
-    }).join('');
-
-    if (loadMoreBtn) {
-      loadMoreBtn.style.display = currentLimit < filteredPokemon.length ? 'block' : 'none';
-    }
-  }
-
-  window.calcAssignPokemon = (id) => assignPokemonSlot(id, targetSelection);
-
-  async function assignPokemonSlot(id, slot) {
-    try {
-      const res = await fetch(`https://pokeapi.co/api/v2/pokemon/${id}`);
-      const data = await res.json();
-
-      const extractedTypes = data.types.map(t => t.type.name);
-
+    if (typeof localPokemonList !== 'undefined') {
       const item = localPokemonList.find(p => p.id === id);
       if (item) item.types = extractedTypes;
-
-      const pokemonObj = {
-        id: data.id,
-        name: data.name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
-        image: data.sprites.other['official-artwork'].front_default || data.sprites.front_default,
-        types: extractedTypes,
-        stats: data.stats,
-        moves: data.moves
-      };
-
-      if (slot === 'A') {
-        pokemonA = pokemonObj;
-        await renderPokemonA();
-      } else {
-        pokemonB = pokemonObj;
-        renderPokemonB();
-      }
-
-      renderGrid();
-    } catch (e) {
-      console.error('Errore assegnazione Pokémon:', e);
     }
+
+    const pokemonObj = {
+      id: data.id,
+      name: data.name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+      rawName: data.name,
+      image: data.sprites.other['official-artwork'].front_default || data.sprites.front_default,
+      types: extractedTypes,
+      stats: data.stats,
+      moves: data.moves
+    };
+
+    if (slot === 'A') {
+      pokemonA = pokemonObj;
+      await renderPokemonA();
+    } else {
+      pokemonB = pokemonObj;
+      renderPokemonB();
+    }
+
+    if (typeof renderGrid === 'function') renderGrid();
+  } catch (e) {
+    console.error('Errore durante l\'assegnazione del Pokémon:', e);
+  }
+}
+
+/**
+ * Renderizza la scheda del Pokémon A ed estrae le mosse tramite Pokémon Central Wiki
+ */
+async function renderPokemonA() {
+  const container = document.getElementById('content-a');
+  if (!container || !pokemonA) return;
+
+  // 1. Tenta il recupero da Pokémon Central Wiki
+  let movesDetailed = [];
+  if (window.CentralWikiFetcher) {
+    movesDetailed = await window.CentralWikiFetcher.fetchMoves(pokemonA.rawName);
   }
 
-  function getFormattedMoveName(slug) {
-    if (MOVE_TRANSLATIONS[slug]) return MOVE_TRANSLATIONS[slug];
-    return slug.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
-  }
-
-  async function renderPokemonA() {
-    const container = document.getElementById('content-a');
-    if (!container || !pokemonA) return;
-
-    const movesDetailed = await Promise.all(pokemonA.moves.slice(0, 40).map(async (m) => {
+  // 2. Fallback automatico su PokéAPI se Central Wiki non restituisce mosse
+  if (!movesDetailed || movesDetailed.length === 0) {
+    movesDetailed = await Promise.all(pokemonA.moves.slice(0, 50).map(async (m) => {
       const slug = m.move.name;
       try {
         const res = await fetch(m.move.url);
         const data = await res.json();
         const typeName = data.type ? data.type.name : 'normal';
+        const categoryName = data.damage_class ? data.damage_class.name : 'physical';
         const itaNameObj = data.names ? data.names.find(n => n.language.name === 'it') : null;
         const finalName = itaNameObj ? itaNameObj.name : getFormattedMoveName(slug);
-        return { slug, url: m.move.url, name: finalName, type: typeName, power: data.power || 0 };
+        return { name: finalName, type: typeName, power: data.power || 0, category: categoryName };
       } catch (e) {
-        return { slug, url: m.move.url, name: getFormattedMoveName(slug), type: 'normal', power: 0 };
+        return { name: getFormattedMoveName(slug), type: 'normal', power: 0, category: 'physical' };
       }
     }));
+  }
 
-    const groupedMoves = {};
-    movesDetailed.forEach(m => {
-      if (!groupedMoves[m.type]) groupedMoves[m.type] = [];
-      groupedMoves[m.type].push(m);
+  // Raggruppamento delle mosse estratte per Tipo
+  const groupedMoves = {};
+  movesDetailed.forEach(m => {
+    const t = m.type || 'normal';
+    if (!groupedMoves[t]) groupedMoves[t] = [];
+    groupedMoves[t].push(m);
+  });
+
+  let selectOptionsHtml = '<option value="">-- Seleziona Mossa --</option>';
+  for (const [typeKey, movesGroup] of Object.entries(groupedMoves)) {
+    const typeLabelITA = (TYPE_NAMES_ITA[typeKey] || typeKey).toUpperCase();
+    selectOptionsHtml += `<optgroup label="TIPO ${typeLabelITA}">`;
+    movesGroup.forEach(m => {
+      selectOptionsHtml += `<option value="${m.name}" data-power="${m.power}" data-type="${m.type}" data-category="${m.category}">[${typeLabelITA}] ${m.name}</option>`;
     });
-
-    let selectOptionsHtml = '';
-    for (const [typeKey, movesGroup] of Object.entries(groupedMoves)) {
-      const typeLabelITA = (TYPE_NAMES_ITA[typeKey] || typeKey).toUpperCase();
-      selectOptionsHtml += `<optgroup label="TIPO ${typeLabelITA}">`;
-      movesGroup.forEach(m => {
-        selectOptionsHtml += `<option value="${m.url}" data-power="${m.power}" data-name="${m.name}">[${typeLabelITA}] ${m.name}</option>`;
-      });
-      selectOptionsHtml += `</optgroup>`;
-    }
-
-    const statsHtml = pokemonA.stats.map(s => {
-      const statKey = s.stat.name;
-      const baseVal = s.base_stat;
-      const bonusEV = statsBonusA[statKey] || 0;
-      const offset = (statKey === 'hp') ? 75 : 20;
-      const totalVal = baseVal + offset + bonusEV;
-
-      return `
-        <div style="display: grid; grid-template-columns: 80px 50px 1fr 100px; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 0.8rem;">
-          <span style="color: #8e9bb0;">${STAT_NAMES_ITA[statKey] || statKey}</span>
-          <span style="font-weight: 700;">${totalVal}</span>
-          <div style="background: #0b0e14; height: 6px; border-radius: 3px; overflow: hidden;">
-            <div style="width: ${Math.min(100, (totalVal / 300) * 100)}%; height: 100%; background: #84cc16;"></div>
-          </div>
-          <div style="display: flex; align-items: center; gap: 4px;">
-            <label style="font-size: 0.7rem; color: #8e9bb0;">EV:</label>
-            <input type="number" min="0" max="32" value="${bonusEV}" onchange="window.updateEV('A', '${statKey}', this.value)" style="width: 45px; background: #0b0e14; border: 1px solid #26334d; color: #fff; text-align: center; border-radius: 4px; padding: 2px;">
-          </div>
-        </div>
-      `;
-    }).join('');
-
-    container.innerHTML = `
-      <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 16px;">
-        <img src="${pokemonA.image}" style="width: 80px; height: 80px; object-fit: contain;">
-        <div>
-          <h3 style="font-size: 1.2rem; font-weight: 800; color: #fff;">${pokemonA.name}</h3>
-          <div>${pokemonA.types.map(t => `<span style="background: #26334d; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; margin-right: 4px;">${(TYPE_NAMES_ITA[t] || t).toUpperCase()}</span>`).join('')}</div>
-        </div>
-      </div>
-
-      <div style="background: #0b0e14; padding: 12px; border-radius: 8px; margin-bottom: 16px; border: 1px solid #26334d;">
-        <label style="font-size: 0.75rem; font-weight: 700; color: #8e9bb0; display: block; margin-bottom: 6px;">MOSSE CATALOGATE PER TIPO (ITALIANO)</label>
-        <select id="select-move-a" onchange="window.updateMoveSelectionInfo(this)" style="width: 100%; background: #121824; border: 1px solid #26334d; color: #84cc16; padding: 8px; border-radius: 6px; font-size: 0.85rem; font-weight: 700; margin-bottom: 8px;">
-          ${selectOptionsHtml}
-        </select>
-        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;">
-          <span id="move-ita-name" style="font-weight: 700; color: #84cc16;">Mossa: -</span>
-          <span id="move-power-val" style="font-weight: 700; color: #fff;">Potenza Reale: -</span>
-        </div>
-      </div>
-
-      <div style="font-size: 0.75rem; font-weight: 700; color: #84cc16; margin-bottom: 8px;">STATISTICHE (BASE + OFFSET + EV 0-32)</div>
-      <div>${statsHtml}</div>
-    `;
-
-    const selectEl = document.getElementById('select-move-a');
-    if (selectEl) window.updateMoveSelectionInfo(selectEl);
+    selectOptionsHtml += `</optgroup>`;
   }
 
-  function renderPokemonB() {
-    const container = document.getElementById('content-b');
-    if (!container || !pokemonB) return;
+  // Calcolo e costruzione del modulo statistiche (Level 50)
+  const statsHtml = pokemonA.stats.map(s => {
+    const statKey = s.stat.name;
+    const baseVal = s.base_stat;
+    const bonusEV = statsBonusA[statKey] || 0;
+    const offset = (statKey === 'hp') ? 75 : 20;
+    const totalVal = baseVal + offset + bonusEV;
 
-    const statsHtml = pokemonB.stats.map(s => {
-      const statKey = s.stat.name;
-      const baseVal = s.base_stat;
-      const bonusEV = statsBonusB[statKey] || 0;
-      const offset = (statKey === 'hp') ? 75 : 20;
-      const totalVal = baseVal + offset + bonusEV;
-
-      return `
-        <div style="display: grid; grid-template-columns: 80px 50px 1fr 100px; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 0.8rem;">
-          <span style="color: #8e9bb0;">${STAT_NAMES_ITA[statKey] || statKey}</span>
-          <span style="font-weight: 700;">${totalVal}</span>
-          <div style="background: #0b0e14; height: 6px; border-radius: 3px; overflow: hidden;">
-            <div style="width: ${Math.min(100, (totalVal / 300) * 100)}%; height: 100%; background: #4f46e5;"></div>
-          </div>
-          <div style="display: flex; align-items: center; gap: 4px;">
-            <label style="font-size: 0.7rem; color: #8e9bb0;">EV:</label>
-            <input type="number" min="0" max="32" value="${bonusEV}" onchange="window.updateEV('B', '${statKey}', this.value)" style="width: 45px; background: #0b0e14; border: 1px solid #26334d; color: #fff; text-align: center; border-radius: 4px; padding: 2px;">
-          </div>
+    return `
+      <div style="display: grid; grid-template-columns: 80px 50px 1fr 100px; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 0.8rem;">
+        <span style="color: #8e9bb0;">${STAT_NAMES_ITA[statKey] || statKey}</span>
+        <span style="font-weight: 700;">${totalVal}</span>
+        <div style="background: #0b0e14; height: 6px; border-radius: 3px; overflow: hidden;">
+          <div style="width: ${Math.min(100, (totalVal / 300) * 100)}%; height: 100%; background: #84cc16;"></div>
         </div>
-      `;
-    }).join('');
-
-    container.innerHTML = `
-      <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 16px;">
-        <img src="${pokemonB.image}" style="width: 80px; height: 80px; object-fit: contain;">
-        <div>
-          <h3 style="font-size: 1.2rem; font-weight: 800; color: #fff;">${pokemonB.name}</h3>
-          <div>${pokemonB.types.map(t => `<span style="background: #26334d; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; margin-right: 4px;">${(TYPE_NAMES_ITA[t] || t).toUpperCase()}</span>`).join('')}</div>
+        <div style="display: flex; align-items: center; gap: 4px;">
+          <label style="font-size: 0.7rem; color: #8e9bb0;">EV:</label>
+          <input type="number" min="0" max="32" value="${bonusEV}" onchange="window.updateEV('A', '${statKey}', this.value)" style="width: 45px; background: #0b0e14; border: 1px solid #26334d; color: #fff; text-align: center; border-radius: 4px; padding: 2px;">
         </div>
       </div>
-
-      <div style="font-size: 0.75rem; font-weight: 700; color: #4f46e5; margin-bottom: 8px;">STATISTICHE (BASE + OFFSET + EV 0-32)</div>
-      <div>${statsHtml}</div>
     `;
+  }).join('');
+
+  // Generazione del DOM finale per Pokémon A
+  container.innerHTML = `
+    <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 16px;">
+      <img src="${pokemonA.image}" style="width: 80px; height: 80px; object-fit: contain;">
+      <div>
+        <h3 style="font-size: 1.2rem; font-weight: 800; color: #fff;">${pokemonA.name}</h3>
+        <div>${pokemonA.types.map(t => `<span style="background: #26334d; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; margin-right: 4px;">${(TYPE_NAMES_ITA[t] || t).toUpperCase()}</span>`).join('')}</div>
+      </div>
+    </div>
+
+    <div style="background: #0b0e14; padding: 12px; border-radius: 8px; margin-bottom: 16px; border: 1px solid #26334d;">
+      <label style="font-size: 0.75rem; font-weight: 700; color: #8e9bb0; display: block; margin-bottom: 6px;">MOSSE (POKÉMON CENTRAL WIKI)</label>
+      <select id="select-move-a" onchange="window.updateMoveSelectionInfo(this)" style="width: 100%; background: #121824; border: 1px solid #26334d; color: #84cc16; padding: 8px; border-radius: 6px; font-size: 0.85rem; font-weight: 700; margin-bottom: 8px;">
+        ${selectOptionsHtml}
+      </select>
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;">
+        <span id="move-ita-name" style="font-weight: 700; color: #84cc16;">Mossa: -</span>
+        <span id="move-power-val" style="font-weight: 700; color: #fff;">Potenza: -</span>
+      </div>
+    </div>
+
+    <div style="font-size: 0.75rem; font-weight: 700; color: #84cc16; margin-bottom: 8px;">STATISTICHE (BASE + OFFSET + EV 0-32)</div>
+    <div>${statsHtml}</div>
+  `;
+
+  const selectEl = document.getElementById('select-move-a');
+  if (selectEl) window.updateMoveSelectionInfo(selectEl);
+}
+
+/**
+ * Renderizza la scheda del Pokémon B
+ */
+function renderPokemonB() {
+  const container = document.getElementById('content-b');
+  if (!container || !pokemonB) return;
+
+  const statsHtml = pokemonB.stats.map(s => {
+    const statKey = s.stat.name;
+    const baseVal = s.base_stat;
+    const bonusEV = statsBonusB[statKey] || 0;
+    const offset = (statKey === 'hp') ? 75 : 20;
+    const totalVal = baseVal + offset + bonusEV;
+
+    return `
+      <div style="display: grid; grid-template-columns: 80px 50px 1fr 100px; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 0.8rem;">
+        <span style="color: #8e9bb0;">${STAT_NAMES_ITA[statKey] || statKey}</span>
+        <span style="font-weight: 700;">${totalVal}</span>
+        <div style="background: #0b0e14; height: 6px; border-radius: 3px; overflow: hidden;">
+          <div style="width: ${Math.min(100, (totalVal / 300) * 100)}%; height: 100%; background: #ef4444;"></div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 4px;">
+          <label style="font-size: 0.7rem; color: #8e9bb0;">EV:</label>
+          <input type="number" min="0" max="32" value="${bonusEV}" onchange="window.updateEV('B', '${statKey}', this.value)" style="width: 45px; background: #0b0e14; border: 1px solid #26334d; color: #fff; text-align: center; border-radius: 4px; padding: 2px;">
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  container.innerHTML = `
+    <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 16px;">
+      <img src="${pokemonB.image}" style="width: 80px; height: 80px; object-fit: contain;">
+      <div>
+        <h3 style="font-size: 1.2rem; font-weight: 800; color: #fff;">${pokemonB.name}</h3>
+        <div>${pokemonB.types.map(t => `<span style="background: #26334d; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; margin-right: 4px;">${(TYPE_NAMES_ITA[t] || t).toUpperCase()}</span>`).join('')}</div>
+      </div>
+    </div>
+    <div style="font-size: 0.75rem; font-weight: 700; color: #ef4444; margin-bottom: 8px;">STATISTICHE (BASE + OFFSET + EV 0-32)</div>
+    <div>${statsHtml}</div>
+  `;
+}
+
+/**
+ * Funzioni Helper esposte sul window object per la gestione degli eventi DOM
+ */
+window.updateEV = function(slot, statKey, val) {
+  const numVal = Math.min(32, Math.max(0, parseInt(val) || 0));
+  if (slot === 'A') {
+    statsBonusA[statKey] = numVal;
+    renderPokemonA();
+  } else {
+    statsBonusB[statKey] = numVal;
+    renderPokemonB();
   }
+};
 
-  window.updateEV = function(slot, statKey, value) {
-    let numVal = parseInt(value, 10);
-    if (isNaN(numVal) || numVal < 0) numVal = 0;
-    if (numVal > 32) numVal = 32;
+window.updateMoveSelectionInfo = function(selectEl) {
+  const selectedOption = selectEl.options[selectEl.selectedIndex];
+  const name = selectedOption ? selectedOption.value : '-';
+  const power = selectedOption ? selectedOption.getAttribute('data-power') : '-';
 
-    if (slot === 'A') {
-      statsBonusA[statKey] = numVal;
-      renderPokemonA();
-    } else {
-      statsBonusB[statKey] = numVal;
-      renderPokemonB();
-    }
-  };
+  const nameLabel = document.getElementById('move-ita-name');
+  const powerLabel = document.getElementById('move-power-val');
 
-  window.updateMoveSelectionInfo = function(selectElement) {
-    if (!selectElement || !selectElement.options.length) return;
-    const opt = selectElement.options[selectElement.selectedIndex];
-    if (!opt) return;
-
-    const moveName = opt.getAttribute('data-name') || opt.textContent;
-    const movePower = opt.getAttribute('data-power') || '0';
-
-    const nameEl = document.getElementById('move-ita-name');
-    const powerEl = document.getElementById('move-power-val');
-
-    if (nameEl) nameEl.textContent = `Mossa: ${moveName}`;
-    if (powerEl) powerEl.textContent = `Potenza Reale: ${movePower}`;
-  };
-
-})();
+  if (nameLabel) nameLabel.textContent = `Mossa: ${name || '-'}`;
+  if (powerLabel) powerLabel.textContent = `Potenza: ${power || '-'}`;
+};
