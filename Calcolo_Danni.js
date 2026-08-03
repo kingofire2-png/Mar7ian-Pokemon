@@ -9,19 +9,25 @@ let pokemonB = null;
 const statsBonusA = { hp: 0, attack: 0, defense: 0, 'special-attack': 0, 'special-defense': 0, speed: 0 };
 const statsBonusB = { hp: 0, attack: 0, defense: 0, 'special-attack': 0, 'special-defense': 0, speed: 0 };
 
-// Mappe di traduzione per l'interfaccia
-const TYPE_NAMES_ITA = {
-  normal: 'Normale', fire: 'Fuoco', water: 'Acqua', grass: 'Erba',
-  electric: 'Elettro', ice: 'Ghiaccio', fighting: 'Lotta', poison: 'Veleno',
-  ground: 'Terra', flying: 'Volante', psychic: 'Psico', bug: 'Coleottero',
-  rock: 'Roccia', ghost: 'Spettro', dragon: 'Drago', dark: 'Buio',
-  steel: 'Acciaio', fairy: 'Folletto'
-};
+// Mappe di traduzione sicure (verificano se sono già state definite altrove nell'app)
+if (typeof window.TYPE_NAMES_ITA === 'undefined') {
+  window.TYPE_NAMES_ITA = {
+    normal: 'Normale', fire: 'Fuoco', water: 'Acqua', grass: 'Erba',
+    electric: 'Elettro', ice: 'Ghiaccio', fighting: 'Lotta', poison: 'Veleno',
+    ground: 'Terra', flying: 'Volante', psychic: 'Psico', bug: 'Coleottero',
+    rock: 'Roccia', ghost: 'Spettro', dragon: 'Drago', dark: 'Buio',
+    steel: 'Acciaio', fairy: 'Folletto'
+  };
+}
+const TYPE_NAMES_ITA = window.TYPE_NAMES_ITA;
 
-const STAT_NAMES_ITA = {
-  hp: 'PS', attack: 'Attacco', defense: 'Difesa',
-  'special-attack': 'Att. Sp.', 'special-defense': 'Dif. Sp.', speed: 'Velocità'
-};
+if (typeof window.STAT_NAMES_ITA === 'undefined') {
+  window.STAT_NAMES_ITA = {
+    hp: 'PS', attack: 'Attacco', defense: 'Difesa',
+    'special-attack': 'Att. Sp.', 'special-defense': 'Dif. Sp.', speed: 'Velocità'
+  };
+}
+const STAT_NAMES_ITA = window.STAT_NAMES_ITA;
 
 function getFormattedMoveName(slug) {
   return slug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
@@ -234,3 +240,18 @@ window.updateMoveSelectionInfo = function(selectEl) {
   if (nameLabel) nameLabel.textContent = `Mossa: ${name || '-'}`;
   if (powerLabel) powerLabel.textContent = `Potenza: ${power || '-'}`;
 };
+
+// Esposizione per lo switch di sezione se richiamato da HTML
+if (typeof window.switchAppSection === 'undefined') {
+  window.switchAppSection = function(section) {
+    const calcSection = document.getElementById('calculator-section');
+    const pokedexSection = document.getElementById('pokedex-section');
+    if (section === 'calculator' || section === 'calcolo') {
+      if (calcSection) calcSection.style.display = 'block';
+      if (pokedexSection) pokedexSection.style.display = 'none';
+    } else {
+      if (calcSection) calcSection.style.display = 'none';
+      if (pokedexSection) pokedexSection.style.display = 'block';
+    }
+  };
+}
