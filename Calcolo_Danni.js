@@ -1,5 +1,5 @@
 /**
- * Calcolo_Danni.js - Versione con Autocomplete, Filtri Tipo e terminologia EV (0-32)
+ * Calcolo_Danni.js - Versione con Autocomplete, Filtri Tipo, EV (0-32) e Wiki Scraping completo via Proxy
  */
 
 (function () {
@@ -399,75 +399,104 @@
   }
 
   // ==========================================
-  // FUNZIONE PER RECUPERARE LE MOSSE DA CENTRAL WIKI
+  // FETCH TOTALE MOSSE DA CENTRAL WIKI (VIA CORS PROXY)
   // ==========================================
   async function fetchMovesFromCentralWiki(pokemonName) {
+    if (!pokemonName) return [];
+
+    const formattedName = pokemonName.trim().replace(/\s+/g, '_');
+    const wikiUrl = `https://wiki.pokemoncentral.it/${encodeURIComponent(formattedName)}`;
+    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(wikiUrl)}`;
+
     try {
-      const formattedWikiName = pokemonName.trim().replace(/\s+/g, '_');
-      const wikiApiUrl = `https://pokemoncentral.it/wiki/api.php?action=parse&page=${encodeURIComponent(formattedWikiName)}&prop=text&format=json&origin=*`;
-      
-      const response = await fetch(wikiApiUrl);
-      if (!response.ok) throw new Error('Errore nel recupero da Pokémon Central Wiki');
-      
+      const response = await fetch(proxyUrl);
+      if (!response.ok) throw new Error('Errore di connessione Proxy');
+
       const data = await response.json();
-      if (!data.parse || !data.parse.text) throw new Error('Pagina Wiki non trovata');
+      const htmlText = data.contents;
 
       const parser = new DOMParser();
-      const doc = parser.parseFromString(data.parse.text['*'], 'text/html');
-      
-      const moves = [];
-      const seenMoves = new Set();
-      const moveLinks = doc.querySelectorAll('table.sortable a[title*="(mossa)"], table.wikitable a[title*="(mossa)"]');
+      const doc = parser.parseFromString(htmlText, 'text/html');
 
-      moveLinks.forEach(link => {
-        const moveNameIta = link.textContent.trim();
-        if (moveNameIta && !seenMoves.has(moveNameIta)) {
-          seenMoves.add(moveNameIta);
-          
-          const row = link.closest('tr');
-          let moveType = 'normal';
-          if (row) {
-            const typeImg = row.querySelector('img[alt*="Tipo"]');
+      const movesSet = new Map();
+      const tables = doc.querySelectorAll('table.attessatabella, table.movetable, table.sortable, table.wikitable');
+
+      tables.forEach(table => {
+        const rows = table.querySelectorAll('tr');
+        rows.forEach(row => {
+          const moveLink = row.querySelector('a[href*="/mossa_"], a[href*="/Mossa_"]');
+          if (moveLink) {
+            const moveName = moveLink.textContent.trim();
+
+            let moveType = 'normal';
+            const typeImg = row.querySelector('img[alt*="Tipo"], img[src*="Tipo"]');
             if (typeImg) {
-              const altText = typeImg.getAttribute('alt').toLowerCase();
+              const altText = (typeImg.getAttribute('alt') || typeImg.getAttribute('src')).toLowerCase();
               Object.keys(TYPE_NAMES_ITA).forEach(tKey => {
-                if (altText.includes(TYPE_NAMES_ITA[tKey].toLowerCase())) {
+                if (altText.includes(TYPE_NAMES_ITA[tKey].toLowerCase()) || altText.includes(tKey)) {
                   moveType = tKey;
                 }
               });
             }
-          }
 
-          moves.push({
-            name: moveNameIta,
-            type: moveType,
-            power: 0
-          });
-        }
+            let power = 0;
+            const cells = row.querySelectorAll('td');
+            cells.forEach(cell => {
+              const text = cell.textContent.trim();
+              if (/^\d{2,3}$/.test(text) && parseInt(text, 10) <= 250) {
+                power = parseInt(text, 10);
+              }
+            });
+
+            if (moveName && !movesSet.has(moveName.toLowerCase())) {
+              movesSet.set(moveName.toLowerCase(), {
+                name: moveName,
+                type: moveType,
+                power: power
+              });
+            }
+          }
+        });
       });
 
-      return moves;
-    } catch (error) {
-      console.warn('Fallback per errore Central Wiki:', error);
-      return [];
+      const resultList = Array.from(movesSet.values());
+      if (resultList.length === 0) {
+        return fetchFallbackPokeAPIMoves();
+      }
+
+      return resultList;
+    } catch (err) {
+      console.warn('Wiki Proxy non raggiungibile, utilizzo fallback PokéAPI:', err);
+      return fetchFallbackPokeAPIMoves();
     }
+  }
+
+  function fetchFallbackPokeAPIMoves() {
+    if (!pokemonA || !pokemonA.moves) return [];
+    return pokemonA.moves.map(m => {
+      const slug = m.move.name;
+      return {
+        name: getFormattedMoveName(slug),
+        type: 'normal',
+        power: 0
+      };
+    });
   }
 
   async function renderPokemonA() {
     const container = document.getElementById('content-a');
     if (!container || !pokemonA) return;
 
-    // 1. Chiamata a Pokémon Central Wiki anziché PokéAPI
+    // Estrazione completa delle mosse (Livello, MT, Uovo) tramite Proxy Wiki
     const movesDetailed = await fetchMovesFromCentralWiki(pokemonA.name);
 
-    // 2. Raggruppamento per tipo
+    // Raggruppamento mosse per tipo
     const groupedMoves = {};
     movesDetailed.forEach(m => {
       if (!groupedMoves[m.type]) groupedMoves[m.type] = [];
       groupedMoves[m.type].push(m);
     });
 
-    // 3. Generazione HTML per le opzioni della select
     let selectOptionsHtml = '';
     for (const [typeKey, movesGroup] of Object.entries(groupedMoves)) {
       const typeLabelITA = (TYPE_NAMES_ITA[typeKey] || typeKey).toUpperCase();
@@ -482,7 +511,6 @@
       selectOptionsHtml = `<option value="">Nessuna mossa trovata su Pokémon Central Wiki</option>`;
     }
 
-    // 4. Generazione HTML per le statistiche (Base + Offset + EV)
     const statsHtml = pokemonA.stats.map(s => {
       const statKey = s.stat.name;
       const baseVal = s.base_stat;
@@ -505,7 +533,6 @@
       `;
     }).join('');
 
-    // 5. Inserimento HTML nel contenitore principale
     container.innerHTML = `
       <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 16px;">
         <img src="${pokemonA.image}" style="width: 80px; height: 80px; object-fit: contain;">
@@ -530,7 +557,6 @@
       <div>${statsHtml}</div>
     `;
 
-    // 6. Aggiornamento info mossa selezionata di default
     const selectEl = document.getElementById('select-move-a');
     if (selectEl) window.updateMoveSelectionInfo(selectEl);
   }
