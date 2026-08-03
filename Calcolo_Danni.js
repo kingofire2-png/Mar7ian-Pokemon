@@ -3,7 +3,7 @@
  * Modulo per il calcolo danni Pokédex & Integrazione Calcolatore
  */
 
-// Gestione dello switch tra le sezioni Pokédex e Calcolo Danni
+// Scope globale per la gestione dello switch sezioni
 window.switchAppSection = function(section) {
   const pokedexView = document.getElementById('main-pokedex-view');
   const calcView = document.getElementById('damage-calc-view');
@@ -12,7 +12,7 @@ window.switchAppSection = function(section) {
     if (pokedexView) pokedexView.style.display = 'none';
     if (calcView) calcView.style.display = 'block';
 
-    // Inizializza o popola i menu a tendina se la lista Pokémon è pronta
+    // Inizializza ed eventualmente ripopola i menu a tendina
     window.initCalculatorDropdowns();
   } else {
     if (pokedexView) pokedexView.style.display = 'block';
@@ -29,7 +29,7 @@ window.initCalculatorDropdowns = function() {
 
   if (!selectA || !selectB) return;
 
-  // Popola solo se il menu non è stato ancora popolato
+  // Popola solo se il menu contiene la sola voce predefinita
   if (selectA.options.length <= 1 && typeof allPokemon !== 'undefined' && Array.isArray(allPokemon) && allPokemon.length > 0) {
     const optionsHtml = allPokemon.map(p => `<option value="${p.rawName}">${p.name}</option>`).join('');
     selectA.innerHTML = '<option value="">-- Seleziona Pokémon A --</option>' + optionsHtml;
@@ -106,7 +106,7 @@ window.calculateDamage = function(attacker, defender, move) {
   };
 };
 
-// Listener all'inizializzazione del documento
+// Aggancio automatico dell'evento di navigazione topbar al caricamento della pagina
 document.addEventListener('DOMContentLoaded', () => {
   const navSelect = document.getElementById('app-navigation-select');
   if (navSelect) {
