@@ -245,15 +245,43 @@ window.updateMoveSelectionInfo = function(selectEl) {
  * Gestione sicura di switchAppSection: preserva la funzione originale dell'app se già definita
  */
 if (typeof window.switchAppSection !== 'function') {
-  window.switchAppSection = function(section) {
-    const calcSection = document.getElementById('calculator-section');
-    const pokedexSection = document.getElementById('pokedex-section');
-    if (section === 'calculator' || section === 'calcolo') {
-      if (calcSection) calcSection.style.display = 'block';
-      if (pokedexSection) pokedexSection.style.display = 'none';
-    } else {
-      if (calcSection) calcSection.style.display = 'none';
-      if (pokedexSection) pokedexSection.style.display = 'block';
-    }
-  };
+window.switchAppSection = function(section) {
+  const pokedexView = document.getElementById('main-pokedex-view');
+  const calcView = document.getElementById('damage-calc-view');
+
+  if (section === 'damage-calc' || section === 'calcolo' || section === 'calculator') {
+    if (pokedexView) pokedexView.style.display = 'none';
+    if (calcView) calcView.style.display = 'block';
+
+    // Popola le Select dei Pokémon se non sono ancora state riempite
+    initCalculatorDropdowns();
+  } else {
+    if (pokedexView) pokedexView.style.display = 'block';
+    if (calcView) calcView.style.display = 'none';
+  }
+};
+
+// Inizializza e popola i menu dei Pokémon per il calcolatore
+function initCalculatorDropdowns() {
+  const selectA = document.getElementById('select-pokemon-a');
+  const selectB = document.getElementById('select-pokemon-b');
+
+  if (!selectA || !selectB || selectA.options.length > 1) return;
+
+  if (typeof allPokemon !== 'undefined' && allPokemon.length > 0) {
+    const optionsHtml = allPokemon.map(p => `<option value="${p.rawName}">${p.name}</option>`).join('');
+    selectA.innerHTML += optionsHtml;
+    selectB.innerHTML += optionsHtml;
+
+    selectA.addEventListener('change', (e) => {
+      const p = allPokemon.find(item => item.rawName === e.target.value);
+      if (p) assignPokemonSlot(p.id, 'A');
+    });
+
+    selectB.addEventListener('change', (e) => {
+      const p = allPokemon.find(item => item.rawName === e.target.value);
+      if (p) assignPokemonSlot(p.id, 'B');
+    });
+  }
+}
 }
