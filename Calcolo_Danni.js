@@ -399,88 +399,86 @@
   }
 
   async function renderPokemonA() {
-    const container = document.getElementById('content-a');
-    if (!container || !pokemonA) return;
+  const container = document.getElementById('content-a');
+  if (!container || !pokemonA) return;
 
-    const movesDetailed = await Promise.all(pokemonA.moves.slice(0, 40).map(async (m) => {
-      const slug = m.move.name;
-      try {
-        const res = await fetch(m.move.url);
-        const data = await res.json();
-        const typeName = data.type ? data.type.name : 'normal';
-        const itaNameObj = data.names ? data.names.find(n => n.language.name === 'it') : null;
-        const finalName = itaNameObj ? itaNameObj.name : getFormattedMoveName(slug);
-        return { slug, url: m.move.url, name: finalName, type: typeName, power: data.power || 0 };
-      } catch (e) {
-        return { slug, url: m.move.url, name: getFormattedMoveName(slug), type: 'normal', power: 0 };
-      }
-    }));
+  // 1. Chiamata a Pokémon Central Wiki anziché PokéAPI
+  const movesDetailed = await fetchMovesFromCentralWiki(pokemonA.name);
 
-    const groupedMoves = {};
-    movesDetailed.forEach(m => {
-      if (!groupedMoves[m.type]) groupedMoves[m.type] = [];
-      groupedMoves[m.type].push(m);
+  // 2. Raggruppamento per tipo
+  const groupedMoves = {};
+  movesDetailed.forEach(m => {
+    if (!groupedMoves[m.type]) groupedMoves[m.type] = [];
+    groupedMoves[m.type].push(m);
+  });
+
+  // 3. Generazione HTML per le opzioni della select
+  let selectOptionsHtml = '';
+  for (const [typeKey, movesGroup] of Object.entries(groupedMoves)) {
+    const typeLabelITA = (TYPE_NAMES_ITA[typeKey] || typeKey).toUpperCase();
+    selectOptionsHtml += `<optgroup label="TIPO ${typeLabelITA}">`;
+    movesGroup.forEach(m => {
+      selectOptionsHtml += `<option value="${m.name}" data-power="${m.power}" data-name="${m.name}">[${typeLabelITA}] ${m.name}</option>`;
     });
-
-    let selectOptionsHtml = '';
-    for (const [typeKey, movesGroup] of Object.entries(groupedMoves)) {
-      const typeLabelITA = (TYPE_NAMES_ITA[typeKey] || typeKey).toUpperCase();
-      selectOptionsHtml += `<optgroup label="TIPO ${typeLabelITA}">`;
-      movesGroup.forEach(m => {
-        selectOptionsHtml += `<option value="${m.url}" data-power="${m.power}" data-name="${m.name}">[${typeLabelITA}] ${m.name}</option>`;
-      });
-      selectOptionsHtml += `</optgroup>`;
-    }
-
-    const statsHtml = pokemonA.stats.map(s => {
-      const statKey = s.stat.name;
-      const baseVal = s.base_stat;
-      const bonusEV = statsBonusA[statKey] || 0;
-      const offset = (statKey === 'hp') ? 75 : 20;
-      const totalVal = baseVal + offset + bonusEV;
-
-      return `
-        <div style="display: grid; grid-template-columns: 80px 50px 1fr 100px; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 0.8rem;">
-          <span style="color: #8e9bb0;">${STAT_NAMES_ITA[statKey] || statKey}</span>
-          <span style="font-weight: 700;">${totalVal}</span>
-          <div style="background: #0b0e14; height: 6px; border-radius: 3px; overflow: hidden;">
-            <div style="width: ${Math.min(100, (totalVal / 300) * 100)}%; height: 100%; background: #84cc16;"></div>
-          </div>
-          <div style="display: flex; align-items: center; gap: 4px;">
-            <label style="font-size: 0.7rem; color: #8e9bb0;">EV:</label>
-            <input type="number" min="0" max="32" value="${bonusEV}" onchange="window.updateEV('A', '${statKey}', this.value)" style="width: 45px; background: #0b0e14; border: 1px solid #26334d; color: #fff; text-align: center; border-radius: 4px; padding: 2px;">
-          </div>
-        </div>
-      `;
-    }).join('');
-
-    container.innerHTML = `
-      <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 16px;">
-        <img src="${pokemonA.image}" style="width: 80px; height: 80px; object-fit: contain;">
-        <div>
-          <h3 style="font-size: 1.2rem; font-weight: 800; color: #fff;">${pokemonA.name}</h3>
-          <div>${pokemonA.types.map(t => `<span style="background: #26334d; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; margin-right: 4px;">${(TYPE_NAMES_ITA[t] || t).toUpperCase()}</span>`).join('')}</div>
-        </div>
-      </div>
-
-      <div style="background: #0b0e14; padding: 12px; border-radius: 8px; margin-bottom: 16px; border: 1px solid #26334d;">
-        <label style="font-size: 0.75rem; font-weight: 700; color: #8e9bb0; display: block; margin-bottom: 6px;">MOSSE CATALOGATE PER TIPO (ITALIANO)</label>
-        <select id="select-move-a" onchange="window.updateMoveSelectionInfo(this)" style="width: 100%; background: #121824; border: 1px solid #26334d; color: #84cc16; padding: 8px; border-radius: 6px; font-size: 0.85rem; font-weight: 700; margin-bottom: 8px;">
-          ${selectOptionsHtml}
-        </select>
-        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;">
-          <span id="move-ita-name" style="font-weight: 700; color: #84cc16;">Mossa: -</span>
-          <span id="move-power-val" style="font-weight: 700; color: #fff;">Potenza Reale: -</span>
-        </div>
-      </div>
-
-      <div style="font-size: 0.75rem; font-weight: 700; color: #84cc16; margin-bottom: 8px;">STATISTICHE (BASE + OFFSET + EV 0-32)</div>
-      <div>${statsHtml}</div>
-    `;
-
-    const selectEl = document.getElementById('select-move-a');
-    if (selectEl) window.updateMoveSelectionInfo(selectEl);
+    selectOptionsHtml += `</optgroup>`;
   }
+
+  if (movesDetailed.length === 0) {
+    selectOptionsHtml = `<option value="">Nessuna mossa trovata su Pokémon Central Wiki</option>`;
+  }
+
+  // 4. Generazione HTML per le statistiche (Base + Offset + EV)
+  const statsHtml = pokemonA.stats.map(s => {
+    const statKey = s.stat.name;
+    const baseVal = s.base_stat;
+    const bonusEV = statsBonusA[statKey] || 0;
+    const offset = (statKey === 'hp') ? 75 : 20;
+    const totalVal = baseVal + offset + bonusEV;
+
+    return `
+      <div style="display: grid; grid-template-columns: 80px 50px 1fr 100px; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 0.8rem;">
+        <span style="color: #8e9bb0;">${STAT_NAMES_ITA[statKey] || statKey}</span>
+        <span style="font-weight: 700;">${totalVal}</span>
+        <div style="background: #0b0e14; height: 6px; border-radius: 3px; overflow: hidden;">
+          <div style="width: ${Math.min(100, (totalVal / 300) * 100)}%; height: 100%; background: #84cc16;"></div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 4px;">
+          <label style="font-size: 0.7rem; color: #8e9bb0;">EV:</label>
+          <input type="number" min="0" max="32" value="${bonusEV}" onchange="window.updateEV('A', '${statKey}', this.value)" style="width: 45px; background: #0b0e14; border: 1px solid #26334d; color: #fff; text-align: center; border-radius: 4px; padding: 2px;">
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // 5. Inserimento HTML nel contenitore principale
+  container.innerHTML = `
+    <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 16px;">
+      <img src="${pokemonA.image}" style="width: 80px; height: 80px; object-fit: contain;">
+      <div>
+        <h3 style="font-size: 1.2rem; font-weight: 800; color: #fff;">${pokemonA.name}</h3>
+        <div>${pokemonA.types.map(t => `<span style="background: #26334d; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; margin-right: 4px;">${(TYPE_NAMES_ITA[t] || t).toUpperCase()}</span>`).join('')}</div>
+      </div>
+    </div>
+
+    <div style="background: #0b0e14; padding: 12px; border-radius: 8px; margin-bottom: 16px; border: 1px solid #26334d;">
+      <label style="font-size: 0.75rem; font-weight: 700; color: #8e9bb0; display: block; margin-bottom: 6px;">MOSSE DA POKÉMON CENTRAL WIKI (ITALIANO)</label>
+      <select id="select-move-a" onchange="window.updateMoveSelectionInfo(this)" style="width: 100%; background: #121824; border: 1px solid #26334d; color: #84cc16; padding: 8px; border-radius: 6px; font-size: 0.85rem; font-weight: 700; margin-bottom: 8px;">
+        ${selectOptionsHtml}
+      </select>
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;">
+        <span id="move-ita-name" style="font-weight: 700; color: #84cc16;">Mossa: -</span>
+        <span id="move-power-val" style="font-weight: 700; color: #fff;">Potenza Reale: -</span>
+      </div>
+    </div>
+
+    <div style="font-size: 0.75rem; font-weight: 700; color: #84cc16; margin-bottom: 8px;">STATISTICHE (BASE + OFFSET + EV 0-32)</div>
+    <div>${statsHtml}</div>
+  `;
+
+  // 6. Aggiornamento info mossa selezionata di default
+  const selectEl = document.getElementById('select-move-a');
+  if (selectEl) window.updateMoveSelectionInfo(selectEl);
+}
 
   function renderPokemonB() {
     const container = document.getElementById('content-b');
