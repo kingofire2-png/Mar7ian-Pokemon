@@ -1,6 +1,6 @@
 /**
- * Calcolo_Danni_Engine.js (Versione Pulita)
- * Gestione calcoli e UI sincronizzati esclusivamente con Pokémon Central Wiki.
+ * Calcolo_Danni_Engine.js
+ * Algoritmo di calcolo danni ottimizzato per VGC / Lotte in Doppio
  */
 
 (function () {
@@ -42,7 +42,7 @@
 
   document.addEventListener('DOMContentLoaded', () => {
     injectEngineStyles();
-    observeSelectionChanges();
+    observeMoveSelection();
   });
 
   function injectEngineStyles() {
@@ -50,75 +50,68 @@
     const style = document.createElement('style');
     style.id = 'engine-styles';
     style.innerHTML = `
-      @keyframes popIn { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
-      .damage-modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(5, 8, 15, 0.85); backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; z-index: 9999; }
-      .damage-modal-card { background: #182030; border: 2px solid #84cc16; border-radius: 16px; padding: 24px; max-width: 520px; width: 90%; color: #fff; animation: popIn 0.25s ease-out forwards; }
+      @keyframes popIn {
+        0% { transform: scale(0.7); opacity: 0; }
+        100% { transform: scale(1); opacity: 1; }
+      }
+      @keyframes pulseGlow {
+        0% { box-shadow: 0 0 10px rgba(132, 204, 22, 0.2); }
+        50% { box-shadow: 0 0 25px rgba(132, 204, 22, 0.6); }
+        100% { box-shadow: 0 0 10px rgba(132, 204, 22, 0.2); }
+      }
+      .damage-modal-overlay {
+        position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+        background: rgba(5, 8, 15, 0.85); backdrop-filter: blur(6px);
+        display: flex; align-items: center; justify-content: center; z-index: 9999;
+      }
+      .damage-modal-card {
+        background: #182030; border: 2px solid #84cc16; border-radius: 16px;
+        padding: 24px; max-width: 520px; width: 90%; color: #fff;
+        animation: popIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards, pulseGlow 3s infinite;
+      }
     `;
     document.head.appendChild(style);
   }
 
-  function observeSelectionChanges() {
-  const observer = new MutationObserver(() => {
-    const selectMove = document.getElementById('select-move-a');
-    const pokemonSelect = document.getElementById('select-pokemon-a');
-
-    // Integrazione con CentralWikiFetcher
-    if (pokemonSelect && !pokemonSelect.dataset.wikiHooked) {
-      pokemonSelect.dataset.wikiHooked = "true";
-      pokemonSelect.addEventListener('change', async () => {
-        const selectedPokemon = pokemonSelect.value;
-        if (window.CentralWikiFetcher && selectedPokemon && selectMove) {
-          selectMove.innerHTML = '<option value="">⏳ Caricamento mosse (Central Wiki)...</option>';
-          const wikiMoves = await window.CentralWikiFetcher.fetchMoves(selectedPokemon);
-          populateMoveSelect(selectMove, wikiMoves);
-        }
-      });
-    }
-
-    if (selectMove && !selectMove.dataset.engineHooked) {
-      selectMove.dataset.engineHooked = "true";
-      selectMove.addEventListener('change', updateSelectedMoveData);
-      injectCalcButton();
-    }
-  });
-
-  observer.observe(document.body, { childList: true, subtree: true });
-}
-
-  function populateMoveSelect(selectEl, moves) {
-    if (!moves || moves.length === 0) {
-      selectEl.innerHTML = '<option value="">-- Nessuna mossa trovata --</option>';
-      return;
-    }
-
-    selectEl.innerHTML = '<option value="">-- Seleziona Mossa (Central Wiki) --</option>';
-    moves.forEach(m => {
-      const opt = document.createElement('option');
-      opt.value = m.name;
-      opt.textContent = m.name;
-      opt.setAttribute('data-name', m.name);
-      opt.setAttribute('data-power', m.power);
-      opt.setAttribute('data-type', m.type);
-      opt.setAttribute('data-category', m.category);
-      selectEl.appendChild(opt);
+  function observeMoveSelection() {
+    const observer = new MutationObserver(() => {
+      const selectEl = document.getElementById('select-move-a');
+      if (selectEl && !selectEl.dataset.engineHooked) {
+        selectEl.dataset.engineHooked = "true";
+        selectEl.addEventListener('change', fetchMoveDetails);
+        fetchMoveDetails();
+        injectCalcButton();
+      }
     });
+
+    observer.observe(document.body, { childList: true, subtree: true });
   }
 
-  function updateSelectedMoveData() {
+  async function fetchMoveDetails() {
     const selectEl = document.getElementById('select-move-a');
     if (!selectEl) return;
 
-    const opt = selectEl.options[selectEl.selectedIndex];
-    if (!opt) return;
+    const moveUrl = selectEl.value;
+    if (!moveUrl) return;
 
-    currentMoveCategory = opt.getAttribute('data-category') || 'physical';
-    currentMoveType = opt.getAttribute('data-type') || 'normal';
-    const power = opt.getAttribute('data-power') || '0';
+    try {
+      const res = await fetch(moveUrl);
+      const data = await res.json();
 
+      currentMoveCategory = data.damage_class ? data.damage_class.name : 'physical';
+      currentMoveType = data.type ? data.type.name : 'normal';
+
+      updateCategoryUI(currentMoveCategory, data.power || 0);
+    } catch (e) {
+      console.error("Errore recupero mossa:", e);
+    }
+  }
+
+  function updateCategoryUI(category, power) {
     const powerEl = document.getElementById('move-power-val');
     if (powerEl) {
-      const catText = CATEGORY_TRANSLATIONS[currentMoveCategory] || currentMoveCategory;
-      const catColor = currentMoveCategory === 'physical' ? '#f97316' : (currentMoveCategory === 'special' ? '#3b82f6' : '#a855f7');
+      const catText = CATEGORY_TRANSLATIONS[category] || category;
+      const catColor = category === 'physical' ? '#f97316' : (category === 'special' ? '#3b82f6' : '#a855f7');
       powerEl.innerHTML = `Potenza: <b>${power}</b> | Categoria: <span style="color: ${catColor}; font-weight: 800;">${catText.toUpperCase()}</span>`;
     }
   }
@@ -130,7 +123,8 @@
     const btn = document.createElement('button');
     btn.id = 'btn-calculate-damage';
     btn.textContent = '⚡ CALCOLA DANNO';
-    btn.style.cssText = 'width: 100%; margin-top: 16px; padding: 12px; background: linear-gradient(135deg, #84cc16, #65a30d); border: none; border-radius: 8px; color: #000; font-weight: 800; font-size: 1rem; cursor: pointer;';
+    btn.style.cssText = 'width: 100%; margin-top: 16px; padding: 12px; background: linear-gradient(135deg, #84cc16, #65a30d); border: none; border-radius: 8px; color: #000; font-weight: 800; font-size: 1rem; cursor: pointer; transition: transform 0.1s;';
+    
     btn.onclick = calculateAndShowDamage;
     boxA.appendChild(btn);
   }
@@ -142,8 +136,11 @@
     const rows = box.querySelectorAll('div[style*="grid-template-columns"]');
     for (const row of rows) {
       const spans = row.querySelectorAll('span');
-      if (spans.length >= 2 && spans[0].textContent.trim().toLowerCase() === statNameSearch.toLowerCase()) {
-        return parseInt(spans[1].textContent.trim(), 10) || 1;
+      if (spans.length >= 2) {
+        const name = spans[0].textContent.trim();
+        if (name.toLowerCase() === statNameSearch.toLowerCase()) {
+          return parseInt(spans[1].textContent.trim(), 10) || 1;
+        }
       }
     }
     return 1;
@@ -164,21 +161,23 @@
 
   function calculateAndShowDamage() {
     const selectEl = document.getElementById('select-move-a');
-    if (!selectEl || !selectEl.value) {
+    if (!selectEl) {
       alert("Seleziona una mossa per l'attaccante!");
       return;
     }
 
-    const opt = selectEl.options[selectEl.selectedIndex];
-    const movePower = parseInt(opt.getAttribute('data-power') || '0', 10);
-    const moveName = opt.getAttribute('data-name') || selectEl.value;
+    const moveOpt = selectEl.options[selectEl.selectedIndex];
+    const movePower = parseInt(moveOpt?.getAttribute('data-power') || '0', 10);
+    const moveName = moveOpt?.getAttribute('data-name') || selectEl.value;
 
     const nameA = document.getElementById('box-a')?.querySelector('h3')?.textContent || 'Pokémon A';
     const nameB = document.getElementById('box-b')?.querySelector('h3')?.textContent || 'Pokémon B';
 
     const hpB = getStatFromDOM('box-b', 'PS');
-    let attackStat = 0, defenseStat = 0;
-    let statOffensivaNome = '', statDifensivaNome = '';
+    let attackStat = 0;
+    let defenseStat = 0;
+    let statOffensivaNome = '';
+    let statDifensivaNome = '';
 
     if (currentMoveCategory === 'physical') {
       attackStat = getStatFromDOM('box-a', 'Attacco');
@@ -204,12 +203,16 @@
 
     const isStab = typesA.includes(currentMoveType);
     const stabMultiplier = isStab ? 1.5 : 1;
+
     const level = 50;
 
-    let baseDamage = Math.floor(Math.floor((Math.floor((2 * level) / 5 + 2) * movePower * attackStat) / defenseStat) / 50) + 2;
-    baseDamage = Math.floor(baseDamage * stabMultiplier);
+    const computeDamageWithAtk = (atk) => {
+      let bD = Math.floor(Math.floor((Math.floor((2 * level) / 5 + 2) * movePower * atk) / defenseStat) / 50) + 2;
+      bD = Math.floor(bD * stabMultiplier);
+      return Math.floor(bD * typeMultiplier);
+    };
 
-    const maxDamage = Math.floor(baseDamage * typeMultiplier);
+    const maxDamage = computeDamageWithAtk(attackStat);
     const minDamage = Math.floor(maxDamage * 0.85);
 
     const minPercent = ((minDamage / hpB) * 100).toFixed(1);
@@ -228,37 +231,118 @@
       statusText = `<span style="color: #84cc16; font-weight: 800;">NON MANDA KO (KO in ${hitsToKO} colpi)</span>`;
     }
 
+    // NUOVI REQUISITI SNELLI E STRATEGIA IN DOPPIO
+    let koRequirementHTML = '';
+    if (isGuaranteedKO) {
+      koRequirementHTML = `<span style="color: #84cc16;">✔ La mossa e le statistiche attuali garantiscono il KO in 1 colpo.</span>`;
+    } else {
+      let neededPower = movePower;
+      if (movePower > 0) {
+        while (neededPower < 300) {
+          let bD = Math.floor(Math.floor((Math.floor((2 * level) / 5 + 2) * neededPower * attackStat) / defenseStat) / 50) + 2;
+          bD = Math.floor(bD * stabMultiplier);
+          if (Math.floor(Math.floor(bD * typeMultiplier) * 0.85) >= hpB) break;
+          neededPower++;
+        }
+      }
+
+      const remainingHP = Math.max(0, hpB - minDamage);
+      const remainingPercent = ((remainingHP / hpB) * 100).toFixed(1);
+
+      let reqList = [];
+      
+      // 1. Suggerimento tattico / Condizioni da applicare sul campo (al posto degli EV)
+      if (typeMultiplier < 2) {
+        reqList.push(`Per il KO diretto serve una mossa **Super Efficace (x2)** o un boost di **+1/+2 in ${statOffensivaNome}** (es. Danzaspada, Congiura, Abilità).`);
+      } else {
+        reqList.push(`Serve un boost di **+1 in ${statOffensivaNome}** o un aumento di danno (es. Strumento come Assorbosfera / Choice Item).`);
+      }
+
+      // 2. Potenza mossa richiesta
+      if (movePower > 0 && neededPower !== movePower) {
+        reqList.push(`Oppure usa una mossa singola da <b>${neededPower} BP</b> (attuale: ${movePower} BP).`);
+      }
+
+      // 3. Strategia Lotte in Doppio (Focus Fire)
+      let doubleStrategyText = `<b>🤝 STRATEGIA LOTTE IN DOPPIO:</b> Il difensore rimane con <b>${remainingHP} HP (${remainingPercent}%)</b>. `;
+      if (remainingPercent <= 25) {
+        doubleStrategyText += `Basta un attacco di supporto leggero dell'alleato (mossa ad area o attacco secondario da ~${remainingHP} HP) nello stesso turno per chiudere il KO.`;
+      } else {
+        doubleStrategyText += `Servirà un attacco dedicato di media/alta potenza del Pokémon alleato (almeno ~${remainingHP} HP di danno) per completare il KO combinato (Focus Fire).`;
+      }
+
+      reqList.push(doubleStrategyText);
+
+      koRequirementHTML = `
+        <ul style="padding-left: 18px; margin: 0; color: #f59e0b;">
+          ${reqList.map(item => `<li style="margin-bottom: 6px;">${item}</li>`).join('')}
+        </ul>
+      `;
+    }
+
+    let effectivenessText = "Effetto normale (x1)";
+    if (typeMultiplier === 0) effectivenessText = "Nessun effetto (x0)";
+    else if (typeMultiplier >= 2) effectivenessText = `Super Efficace (x${typeMultiplier})`;
+    else if (typeMultiplier < 1) effectivenessText = `Poco Efficace (x${typeMultiplier})`;
+
     showModal({
       title: `${nameA} ➔ ${nameB}`,
       statusText,
+      koRequirementHTML,
       moveName,
       category: CATEGORY_TRANSLATIONS[currentMoveCategory] || currentMoveCategory,
-      minDamage, maxDamage, hpB, minPercent, maxPercent,
-      attackStat, defenseStat, statOffensivaNome, statDifensivaNome
+      minDamage,
+      maxDamage,
+      hpB,
+      minPercent,
+      maxPercent,
+      effectivenessText,
+      attackStat,
+      defenseStat,
+      statOffensivaNome,
+      statDifensivaNome,
+      stabMultiplier
     });
   }
 
   function showModal(data) {
     const overlay = document.createElement('div');
     overlay.className = 'damage-modal-overlay';
+
     overlay.innerHTML = `
       <div class="damage-modal-card">
-        <h2 style="font-size: 1.2rem; color: #84cc16; text-align: center; margin-bottom: 12px;">${data.title}</h2>
-        <div style="text-align: center; background: #0b0e14; padding: 10px; border-radius: 8px; margin-bottom: 12px;">
+        <h2 style="font-size: 1.3rem; color: #84cc16; margin-bottom: 8px; text-align: center;">${data.title}</h2>
+        
+        <!-- BOX 1: ESITO KO -->
+        <div style="font-size: 1rem; text-align: center; margin-bottom: 12px; padding: 10px; background: #0b0e14; border-radius: 8px;">
           ${data.statusText}
         </div>
-        <div style="font-size: 0.85rem; color: #cbd5e1; background: #0b0e14; padding: 12px; border-radius: 8px;">
+
+        <!-- BOX 2: REQUISITI KO & LOTTE IN DOPPIO -->
+        <div style="font-size: 0.85rem; line-height: 1.5; color: #cbd5e1; background: #0b0e14; padding: 12px; border-radius: 8px; border: 1px solid #f59e0b; margin-bottom: 12px;">
+          <h4 style="color: #f59e0b; margin-bottom: 6px; font-weight: 800; font-size: 0.9rem;">⚡ Requisiti KO & Lotte in Doppio:</h4>
+          ${data.koRequirementHTML}
+        </div>
+
+        <!-- BOX 3: DETTAGLI MATEMATICI -->
+        <div style="font-size: 0.85rem; line-height: 1.5; color: #cbd5e1; background: #0b0e14; padding: 12px; border-radius: 8px; border: 1px solid #26334d;">
+          <h4 style="color: #fff; margin-bottom: 6px; font-weight: 800; font-size: 0.9rem;">Dettagli del Calcolo Math:</h4>
           <ul style="padding-left: 18px; margin: 0;">
             <li>Mossa: <b>${data.moveName}</b> (${data.category})</li>
             <li>Danno Totale: <b>${data.minDamage} - ${data.maxDamage} HP</b> (${data.minPercent}% - ${data.maxPercent}%) su ${data.hpB} HP</li>
-            <li>Stat. Offensiva (${data.statOffensivaNome}): <b>${data.attackStat}</b></li>
-            <li>Stat. Difensiva (${data.statDifensivaNome}): <b>${data.defenseStat}</b></li>
+            <li>Efficacia Tipo: <b>${data.effectivenessText}</b></li>
+            <li>Statistica Offensiva (${data.statOffensivaNome}): <b>${data.attackStat}</b></li>
+            <li>Statistica Difensiva (${data.statDifensivaNome}): <b>${data.defenseStat}</b></li>
+            <li>Bonus STAB: <b>${data.stabMultiplier > 1 ? 'Sì (x1.5)' : 'No'}</b></li>
           </ul>
         </div>
-        <button id="btn-close-modal" style="width: 100%; margin-top: 14px; padding: 10px; background: #26334d; border: none; color: #fff; border-radius: 8px; font-weight: 700; cursor: pointer;">CHIUDI</button>
+
+        <button id="btn-close-modal" style="width: 100%; margin-top: 14px; padding: 10px; background: #26334d; border: none; color: #fff; font-weight: 700; border-radius: 8px; cursor: pointer;">CHIUDI</button>
       </div>
     `;
+
     document.body.appendChild(overlay);
+
     document.getElementById('btn-close-modal').onclick = () => overlay.remove();
     overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
   }
