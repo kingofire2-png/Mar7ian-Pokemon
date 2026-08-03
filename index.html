@@ -82,9 +82,27 @@
     </div>
 
     <!-- 3. CONTAINER PER LA VISTA CALCOLO DANNI -->
-    <div id="damage-calc-view" style="display: none;"></div>
+<div id="damage-calc-view" style="display: none; padding-top: 20px;">
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+    <!-- Box Attaccante (Pokémon A) -->
+    <div id="box-a" style="background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px;">
+      <h2 style="font-size: 1.1rem; color: var(--lime); margin-bottom: 12px; font-weight: 800;">ATTACCANTE (POKÉMON A)</h2>
+      <select id="select-pokemon-a" style="width: 100%; background: var(--bg-dark); border: 1px solid var(--border-color); color: #fff; padding: 8px; border-radius: 6px; margin-bottom: 16px;">
+        <option value="">-- Seleziona Pokémon A --</option>
+      </select>
+      <div id="content-a"></div>
+    </div>
 
+    <!-- Box Difensore (Pokémon B) -->
+    <div id="box-b" style="background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px;">
+      <h2 style="font-size: 1.1rem; color: #ef4444; margin-bottom: 12px; font-weight: 800;">DIFENSORE (POKÉMON B)</h2>
+      <select id="select-pokemon-b" style="width: 100%; background: var(--bg-dark); border: 1px solid var(--border-color); color: #fff; padding: 8px; border-radius: 6px; margin-bottom: 16px;">
+        <option value="">-- Seleziona Pokémon B --</option>
+      </select>
+      <div id="content-b"></div>
+    </div>
   </div>
+</div>
 
   <!-- Modal Abilità -->
   <div id="abilityModal" class="modal-overlay" style="display:none;">
