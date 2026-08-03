@@ -58,33 +58,32 @@
   }
 
   function observeSelectionChanges() {
-    const observer = new MutationObserver(() => {
-      const selectMove = document.getElementById('select-move-a');
-      const pokemonSelect = document.getElementById('select-pokemon-a');
+  const observer = new MutationObserver(() => {
+    const selectMove = document.getElementById('select-move-a');
+    const pokemonSelect = document.getElementById('select-pokemon-a');
 
-      // Collegamento con CentralWikiFetcher per il popolamento del menu mosse
-      if (pokemonSelect && !pokemonSelect.dataset.wikiHooked) {
-        pokemonSelect.dataset.wikiHooked = "true";
-        pokemonSelect.addEventListener('change', async () => {
-          const selectedPokemon = pokemonSelect.value;
-          if (window.CentralWikiFetcher && selectedPokemon && selectMove) {
-            selectMove.innerHTML = '<option value="">⏳ Caricamento mosse (Central Wiki)...</option>';
-            const wikiMoves = await window.CentralWikiFetcher.fetchMoves(selectedPokemon);
-            populateMoveSelect(selectMove, wikiMoves);
-          }
-        });
-      }
+    // Integrazione con CentralWikiFetcher
+    if (pokemonSelect && !pokemonSelect.dataset.wikiHooked) {
+      pokemonSelect.dataset.wikiHooked = "true";
+      pokemonSelect.addEventListener('change', async () => {
+        const selectedPokemon = pokemonSelect.value;
+        if (window.CentralWikiFetcher && selectedPokemon && selectMove) {
+          selectMove.innerHTML = '<option value="">⏳ Caricamento mosse (Central Wiki)...</option>';
+          const wikiMoves = await window.CentralWikiFetcher.fetchMoves(selectedPokemon);
+          populateMoveSelect(selectMove, wikiMoves);
+        }
+      });
+    }
 
-      // Evento di cambio mossa
-      if (selectMove && !selectMove.dataset.engineHooked) {
-        selectMove.dataset.engineHooked = "true";
-        selectMove.addEventListener('change', updateSelectedMoveData);
-        injectCalcButton();
-      }
-    });
+    if (selectMove && !selectMove.dataset.engineHooked) {
+      selectMove.dataset.engineHooked = "true";
+      selectMove.addEventListener('change', updateSelectedMoveData);
+      injectCalcButton();
+    }
+  });
 
-    observer.observe(document.body, { childList: true, subtree: true });
-  }
+  observer.observe(document.body, { childList: true, subtree: true });
+}
 
   function populateMoveSelect(selectEl, moves) {
     if (!moves || moves.length === 0) {
