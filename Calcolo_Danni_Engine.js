@@ -1,12 +1,11 @@
 /**
  * Calcolo_Danni_Engine.js
- * Algoritmo di calcolo danni basato sulle statistiche dinamiche (Base + Offset + EV) di Calcolo_Danni.js
+ * Algoritmo di calcolo danni con Suggerimenti per Breakpoint KO e Strategia Lotte in Doppio (Double Battles)
  */
 
 (function () {
   'use strict';
 
-  // Matrice delle efficacie dei Tipi Pokémon (Attaccante vs Difensore)
   const TYPE_CHART = {
     normal:   { rock: 0.5, ghost: 0, steel: 0.5 },
     fire:     { fire: 0.5, water: 0.5, grass: 2, ice: 2, bug: 2, rock: 0.5, dragon: 0.5, steel: 2 },
@@ -28,11 +27,7 @@
     fairy:    { fire: 0.5, fighting: 2, poison: 0.5, dragon: 2, dark: 2, steel: 0.5 }
   };
 
-  const CATEGORY_TRANSLATIONS = {
-    physical: 'Fisico',
-    special: 'Speciale',
-    status: 'Stato'
-  };
+  const CATEGORY_TRANSLATIONS = { physical: 'Fisico', special: 'Speciale', status: 'Stato' };
 
   const TYPE_ITA_TO_ENG = {
     'normale': 'normal', 'fuoco': 'fire', 'acqua': 'water', 'erba': 'grass',
@@ -117,7 +112,6 @@
     if (powerEl) {
       const catText = CATEGORY_TRANSLATIONS[category] || category;
       const catColor = category === 'physical' ? '#f97316' : (category === 'special' ? '#3b82f6' : '#a855f7');
-      
       powerEl.innerHTML = `Potenza: <b>${power}</b> | Categoria: <span style="color: ${catColor}; font-weight: 800;">${catText.toUpperCase()}</span>`;
     }
   }
@@ -135,7 +129,6 @@
     boxA.appendChild(btn);
   }
 
-  // Estrae la statistica già calcolata (Base + Offset + EV) dal DOM generato da Calcolo_Danni.js
   function getStatFromDOM(boxId, statNameSearch) {
     const box = document.getElementById(boxId);
     if (!box) return 1;
@@ -153,7 +146,21 @@
     return 1;
   }
 
-  // Legge i tipi del Pokémon visibili nella scheda
+  function getEVFromDOM(boxId, statNameSearch) {
+    const box = document.getElementById(boxId);
+    if (!box) return 0;
+
+    const rows = box.querySelectorAll('div[style*="grid-template-columns"]');
+    for (const row of rows) {
+      const spans = row.querySelectorAll('span');
+      if (spans.length >= 1 && spans[0].textContent.trim().toLowerCase() === statNameSearch.toLowerCase()) {
+        const input = row.querySelector('input[type="number"]');
+        return parseInt(input?.value || '0', 10);
+      }
+    }
+    return 0;
+  }
+
   function getPokemonTypesFromDOM(boxId) {
     const box = document.getElementById(boxId);
     if (!box) return [];
@@ -162,8 +169,7 @@
     const types = [];
     spans.forEach(s => {
       const rawType = s.textContent.trim().toLowerCase();
-      const engType = TYPE_ITA_TO_ENG[rawType] || rawType;
-      types.push(engType);
+      types.push(TYPE_ITA_TO_ENG[rawType] || rawType);
     });
     return types;
   }
@@ -182,7 +188,6 @@
     const nameA = document.getElementById('box-a')?.querySelector('h3')?.textContent || 'Pokémon A';
     const nameB = document.getElementById('box-b')?.querySelector('h3')?.textContent || 'Pokémon B';
 
-    // Lettura delle statistiche effettive dal DOM
     const hpB = getStatFromDOM('box-b', 'PS');
     let attackStat = 0;
     let defenseStat = 0;
@@ -201,10 +206,11 @@
       statDifensivaNome = 'Sp. Def';
     }
 
+    const currentEV = getEVFromDOM('box-a', statOffensivaNome);
+
     const typesA = getPokemonTypesFromDOM('box-a');
     const typesB = getPokemonTypesFromDOM('box-b');
 
-    // Calcolo Efficacia Tipo
     let typeMultiplier = 1;
     typesB.forEach(defType => {
       if (TYPE_CHART[currentMoveType] && TYPE_CHART[currentMoveType][defType] !== undefined) {
@@ -212,21 +218,20 @@
       }
     });
 
-    // Calcolo STAB
     const isStab = typesA.includes(currentMoveType);
     const stabMultiplier = isStab ? 1.5 : 1;
 
-    // Formula Ufficiale Danno Gen 3+ (Livello 50)
     const level = 50;
-    let baseDamage = Math.floor(Math.floor((Math.floor((2 * level) / 5 + 2) * movePower * attackStat) / defenseStat) / 50) + 2;
-    baseDamage = Math.floor(baseDamage * stabMultiplier);
-    baseDamage = Math.floor(baseDamage * typeMultiplier);
 
-    // Roll Danno (85% - 100%)
-    const minDamage = Math.floor(baseDamage * 0.85);
-    const maxDamage = baseDamage;
+    const computeDamageWithAtk = (atk) => {
+      let bD = Math.floor(Math.floor((Math.floor((2 * level) / 5 + 2) * movePower * atk) / defenseStat) / 50) + 2;
+      bD = Math.floor(bD * stabMultiplier);
+      return Math.floor(bD * typeMultiplier);
+    };
 
-    // Percentuali su HP totali difensore
+    const maxDamage = computeDamageWithAtk(attackStat);
+    const minDamage = Math.floor(maxDamage * 0.85);
+
     const minPercent = ((minDamage / hpB) * 100).toFixed(1);
     const maxPercent = ((maxDamage / hpB) * 100).toFixed(1);
 
@@ -240,7 +245,63 @@
     } else if (isPossibleKO) {
       statusText = `<span style="color: #f59e0b; font-weight: 800;">POSSIBILE KO IN 1 COLPO (${minPercent}% - ${maxPercent}%)</span>`;
     } else {
-      statusText = `<span style="color: #84cc16; font-weight: 800;">NON MANDA KO (Serve 1/2 KO in ${hitsToKO} colpi)</span>`;
+      statusText = `<span style="color: #84cc16; font-weight: 800;">NON MANDA KO (KO in ${hitsToKO} colpi)</span>`;
+    }
+
+    // CALCOLO REQUISITI E STRATEGIA DOPPIO
+    let koRequirementHTML = '';
+    if (isGuaranteedKO) {
+      koRequirementHTML = `<span style="color: #84cc16;">✔ La configurazione attuale garantisce già il KO da solo.</span>`;
+    } else {
+      let neededAtk = attackStat;
+      while (neededAtk < 999 && Math.floor(computeDamageWithAtk(neededAtk) * 0.85) < hpB) {
+        neededAtk++;
+      }
+
+      const atkDiff = neededAtk - attackStat;
+      const targetEV = currentEV + atkDiff;
+
+      let neededPower = movePower;
+      if (movePower > 0) {
+        while (neededPower < 300) {
+          let bD = Math.floor(Math.floor((Math.floor((2 * level) / 5 + 2) * neededPower * attackStat) / defenseStat) / 50) + 2;
+          bD = Math.floor(bD * stabMultiplier);
+          if (Math.floor(Math.floor(bD * typeMultiplier) * 0.85) >= hpB) break;
+          neededPower++;
+        }
+      }
+
+      // HP Rimanenti al difensore al minimo colpo inflitto (caso peggiore)
+      const remainingHP = Math.max(0, hpB - minDamage);
+      const remainingPercent = ((remainingHP / hpB) * 100).toFixed(1);
+
+      let reqList = [];
+      
+      if (targetEV <= 32) {
+        reqList.push(`Imposta gli EV di <b>${statOffensivaNome}</b> a <b>${targetEV}</b> (attualmente ${currentEV}).`);
+      } else {
+        reqList.push(`EV insufficienza in singolo: servirebbe stat ${neededAtk} (oltre cap 32 EV).`);
+      }
+
+      if (movePower > 0 && neededPower !== movePower) {
+        reqList.push(`Oppure usa una mossa singola da <b>${neededPower} BP</b> (attuale: ${movePower} BP).`);
+      }
+
+      // ANALISI LOTTE IN DOPPIO (FOCUS FIRE CON ALLEATO)
+      let doubleStrategyText = `<b>🤝 STRATEGIA LOTTE IN DOPPIO:</b> Il difensore rimane con <b>${remainingHP} HP (${remainingPercent}%)</b>. `;
+      if (remainingPercent <= 25) {
+        doubleStrategyText += `Servirà un attacco di supporto leggero dell'alleato (es. mossa ad area o attacco neutrale secondario da ~${remainingHP} HP) nello stesso turno per chiudere il KO.`;
+      } else {
+        doubleStrategyText += `Servirà un attacco dedicato di media/alta potenza del Pokémon alleato (almeno ~${remainingHP} HP di danno) per completare il KO combinato (Focus Fire).`;
+      }
+
+      reqList.push(doubleStrategyText);
+
+      koRequirementHTML = `
+        <ul style="padding-left: 18px; margin: 0; color: #f59e0b;">
+          ${reqList.map(item => `<li style="margin-bottom: 6px;">${item}</li>`).join('')}
+        </ul>
+      `;
     }
 
     let effectivenessText = "Effetto normale (x1)";
@@ -251,6 +312,7 @@
     showModal({
       title: `${nameA} ➔ ${nameB}`,
       statusText,
+      koRequirementHTML,
       moveName,
       category: CATEGORY_TRANSLATIONS[currentMoveCategory] || currentMoveCategory,
       minDamage,
@@ -273,13 +335,22 @@
 
     overlay.innerHTML = `
       <div class="damage-modal-card">
-        <h2 style="font-size: 1.4rem; color: #84cc16; margin-bottom: 8px; text-align: center;">${data.title}</h2>
-        <div style="font-size: 1.1rem; text-align: center; margin-bottom: 16px; padding: 10px; background: #0b0e14; border-radius: 8px;">
+        <h2 style="font-size: 1.3rem; color: #84cc16; margin-bottom: 8px; text-align: center;">${data.title}</h2>
+        
+        <!-- BOX 1: ESITO KO -->
+        <div style="font-size: 1rem; text-align: center; margin-bottom: 12px; padding: 10px; background: #0b0e14; border-radius: 8px;">
           ${data.statusText}
         </div>
 
-        <div style="font-size: 0.9rem; line-height: 1.6; color: #cbd5e1; background: #0b0e14; padding: 14px; border-radius: 8px; border: 1px solid #26334d;">
-          <h4 style="color: #fff; margin-bottom: 6px;">Dettagli del Calcolo Math:</h4>
+        <!-- BOX 2: STRATEGIA & REQUISITI KO (COMPATIBILE LOTTE IN DOPPIO) -->
+        <div style="font-size: 0.85rem; line-height: 1.5; color: #cbd5e1; background: #0b0e14; padding: 12px; border-radius: 8px; border: 1px solid #f59e0b; margin-bottom: 12px;">
+          <h4 style="color: #f59e0b; margin-bottom: 6px; font-weight: 800; font-size: 0.9rem;">⚡ Requisiti KO & Lotte in Doppio:</h4>
+          ${data.koRequirementHTML}
+        </div>
+
+        <!-- BOX 3: DETTAGLI MATEMATICI -->
+        <div style="font-size: 0.85rem; line-height: 1.5; color: #cbd5e1; background: #0b0e14; padding: 12px; border-radius: 8px; border: 1px solid #26334d;">
+          <h4 style="color: #fff; margin-bottom: 6px; font-weight: 800; font-size: 0.9rem;">Dettagli del Calcolo Math:</h4>
           <ul style="padding-left: 18px; margin: 0;">
             <li>Mossa: <b>${data.moveName}</b> (${data.category})</li>
             <li>Danno Totale: <b>${data.minDamage} - ${data.maxDamage} HP</b> (${data.minPercent}% - ${data.maxPercent}%) su ${data.hpB} HP</li>
@@ -290,7 +361,7 @@
           </ul>
         </div>
 
-        <button id="btn-close-modal" style="width: 100%; margin-top: 16px; padding: 10px; background: #26334d; border: none; color: #fff; font-weight: 700; border-radius: 8px; cursor: pointer;">CHIUDI</button>
+        <button id="btn-close-modal" style="width: 100%; margin-top: 14px; padding: 10px; background: #26334d; border: none; color: #fff; font-weight: 700; border-radius: 8px; cursor: pointer;">CHIUDI</button>
       </div>
     `;
 
