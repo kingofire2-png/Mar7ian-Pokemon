@@ -1,6 +1,6 @@
 /**
  * Calcolo_Danni_Engine.js
- * Algoritmo di calcolo danni con Suggerimenti per Breakpoint KO e Strategia Lotte in Doppio (Double Battles)
+ * Algoritmo di calcolo danni ottimizzato per VGC / Lotte in Doppio
  */
 
 (function () {
@@ -146,21 +146,6 @@
     return 1;
   }
 
-  function getEVFromDOM(boxId, statNameSearch) {
-    const box = document.getElementById(boxId);
-    if (!box) return 0;
-
-    const rows = box.querySelectorAll('div[style*="grid-template-columns"]');
-    for (const row of rows) {
-      const spans = row.querySelectorAll('span');
-      if (spans.length >= 1 && spans[0].textContent.trim().toLowerCase() === statNameSearch.toLowerCase()) {
-        const input = row.querySelector('input[type="number"]');
-        return parseInt(input?.value || '0', 10);
-      }
-    }
-    return 0;
-  }
-
   function getPokemonTypesFromDOM(boxId) {
     const box = document.getElementById(boxId);
     if (!box) return [];
@@ -206,8 +191,6 @@
       statDifensivaNome = 'Sp. Def';
     }
 
-    const currentEV = getEVFromDOM('box-a', statOffensivaNome);
-
     const typesA = getPokemonTypesFromDOM('box-a');
     const typesB = getPokemonTypesFromDOM('box-b');
 
@@ -248,19 +231,11 @@
       statusText = `<span style="color: #84cc16; font-weight: 800;">NON MANDA KO (KO in ${hitsToKO} colpi)</span>`;
     }
 
-    // CALCOLO REQUISITI E STRATEGIA DOPPIO
+    // NUOVI REQUISITI SNELLI E STRATEGIA IN DOPPIO
     let koRequirementHTML = '';
     if (isGuaranteedKO) {
-      koRequirementHTML = `<span style="color: #84cc16;">✔ La configurazione attuale garantisce già il KO da solo.</span>`;
+      koRequirementHTML = `<span style="color: #84cc16;">✔ La mossa e le statistiche attuali garantiscono il KO in 1 colpo.</span>`;
     } else {
-      let neededAtk = attackStat;
-      while (neededAtk < 999 && Math.floor(computeDamageWithAtk(neededAtk) * 0.85) < hpB) {
-        neededAtk++;
-      }
-
-      const atkDiff = neededAtk - attackStat;
-      const targetEV = currentEV + atkDiff;
-
       let neededPower = movePower;
       if (movePower > 0) {
         while (neededPower < 300) {
@@ -271,26 +246,27 @@
         }
       }
 
-      // HP Rimanenti al difensore al minimo colpo inflitto (caso peggiore)
       const remainingHP = Math.max(0, hpB - minDamage);
       const remainingPercent = ((remainingHP / hpB) * 100).toFixed(1);
 
       let reqList = [];
       
-      if (targetEV <= 32) {
-        reqList.push(`Imposta gli EV di <b>${statOffensivaNome}</b> a <b>${targetEV}</b> (attualmente ${currentEV}).`);
+      // 1. Suggerimento tattico / Condizioni da applicare sul campo (al posto degli EV)
+      if (typeMultiplier < 2) {
+        reqList.push(`Per il KO diretto serve una mossa **Super Efficace (x2)** o un boost di **+1/+2 in ${statOffensivaNome}** (es. Danzaspada, Congiura, Abilità).`);
       } else {
-        reqList.push(`EV insufficienza in singolo: servirebbe stat ${neededAtk} (oltre cap 32 EV).`);
+        reqList.push(`Serve un boost di **+1 in ${statOffensivaNome}** o un aumento di danno (es. Strumento come Assorbosfera / Choice Item).`);
       }
 
+      // 2. Potenza mossa richiesta
       if (movePower > 0 && neededPower !== movePower) {
         reqList.push(`Oppure usa una mossa singola da <b>${neededPower} BP</b> (attuale: ${movePower} BP).`);
       }
 
-      // ANALISI LOTTE IN DOPPIO (FOCUS FIRE CON ALLEATO)
+      // 3. Strategia Lotte in Doppio (Focus Fire)
       let doubleStrategyText = `<b>🤝 STRATEGIA LOTTE IN DOPPIO:</b> Il difensore rimane con <b>${remainingHP} HP (${remainingPercent}%)</b>. `;
       if (remainingPercent <= 25) {
-        doubleStrategyText += `Servirà un attacco di supporto leggero dell'alleato (es. mossa ad area o attacco neutrale secondario da ~${remainingHP} HP) nello stesso turno per chiudere il KO.`;
+        doubleStrategyText += `Basta un attacco di supporto leggero dell'alleato (mossa ad area o attacco secondario da ~${remainingHP} HP) nello stesso turno per chiudere il KO.`;
       } else {
         doubleStrategyText += `Servirà un attacco dedicato di media/alta potenza del Pokémon alleato (almeno ~${remainingHP} HP di danno) per completare il KO combinato (Focus Fire).`;
       }
@@ -342,7 +318,7 @@
           ${data.statusText}
         </div>
 
-        <!-- BOX 2: STRATEGIA & REQUISITI KO (COMPATIBILE LOTTE IN DOPPIO) -->
+        <!-- BOX 2: REQUISITI KO & LOTTE IN DOPPIO -->
         <div style="font-size: 0.85rem; line-height: 1.5; color: #cbd5e1; background: #0b0e14; padding: 12px; border-radius: 8px; border: 1px solid #f59e0b; margin-bottom: 12px;">
           <h4 style="color: #f59e0b; margin-bottom: 6px; font-weight: 800; font-size: 0.9rem;">⚡ Requisiti KO & Lotte in Doppio:</h4>
           ${data.koRequirementHTML}
