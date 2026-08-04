@@ -54,6 +54,48 @@
   let pokemonB = null;
   let targetSelection = 'A';
 
+  // ===============================
+// DATABASE MOSSE (Pokemon Central)
+// ===============================
+let movesDatabase = {};
+
+async function loadMovesDatabase() {
+
+    try {
+
+        const response = await fetch("./pokemon-moves.json");
+
+        movesDatabase = await response.json();
+
+        console.log(
+            "Database mosse caricato:",
+            Object.keys(movesDatabase).length,
+            "Pokémon"
+        );
+
+    } catch (err) {
+
+        console.error(
+            "Errore caricamento pokemon-moves.json",
+            err
+        );
+
+    }
+
+}
+
+function getPokemonMoves(name) {
+
+    if (!name) return [];
+
+    const entry = movesDatabase[name];
+
+    if (!entry) return [];
+
+    return entry.moves || [];
+
+}
+
   let statsBonusA = { 'hp': 0, 'attack': 0, 'defense': 0, 'special-attack': 0, 'special-defense': 0, 'speed': 0 };
   let statsBonusB = { 'hp': 0, 'attack': 0, 'defense': 0, 'special-attack': 0, 'special-defense': 0, 'speed': 0 };
 
@@ -72,10 +114,15 @@
     }
   };
 
-  document.addEventListener('DOMContentLoaded', () => {
+  document.addEventListener('DOMContentLoaded', async () => {
+
     initDamageCalcLayout();
-    loadPokemonDataset();
-  });
+
+    await loadMovesDatabase();
+
+    await loadPokemonDataset();
+
+});
 
   function initDamageCalcLayout() {
     const calcContainer = document.getElementById('damage-calc-view');
