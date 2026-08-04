@@ -88,11 +88,22 @@ function getPokemonMoves(name) {
 
     if (!name) return [];
 
-    const entry = movesDatabase[name];
+    const normalized = name.trim();
 
-    if (!entry) return [];
+    const entry =
+        movesDatabase[normalized] ||
+        movesDatabase[normalized.replace(/ /g, "-")] ||
+        movesDatabase[normalized.replace(/-/g, " ")];
 
-    return entry.moves || [];
+    if (!entry) {
+
+        console.warn("Mosse non trovate:", normalized);
+
+        return [];
+
+    }
+
+    return entry.moves;
 
 }
 
@@ -445,90 +456,9 @@ function getPokemonMoves(name) {
     return slug.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
   }
 
-  // ==========================================
-  // FETCH TOTALE MOSSE DA CENTRAL WIKI (VIA CORS PROXY)
-  // ==========================================
-  async function fetchMovesFromCentralWiki(pokemonName) {
-    if (!pokemonName) return [];
+  
 
-    const formattedName = pokemonName.trim().replace(/\s+/g, '_');
-    const wikiUrl = `https://wiki.pokemoncentral.it/${encodeURIComponent(formattedName)}`;
-    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(wikiUrl)}`;
-
-    try {
-      const response = await fetch(proxyUrl);
-      if (!response.ok) throw new Error('Errore di connessione Proxy');
-
-      const data = await response.json();
-      const htmlText = data.contents;
-
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(htmlText, 'text/html');
-
-      const movesSet = new Map();
-      const tables = doc.querySelectorAll('table.attessatabella, table.movetable, table.sortable, table.wikitable');
-
-      tables.forEach(table => {
-        const rows = table.querySelectorAll('tr');
-        rows.forEach(row => {
-          const moveLink = row.querySelector('a[href*="/mossa_"], a[href*="/Mossa_"]');
-          if (moveLink) {
-            const moveName = moveLink.textContent.trim();
-
-            let moveType = 'normal';
-            const typeImg = row.querySelector('img[alt*="Tipo"], img[src*="Tipo"]');
-            if (typeImg) {
-              const altText = (typeImg.getAttribute('alt') || typeImg.getAttribute('src')).toLowerCase();
-              Object.keys(TYPE_NAMES_ITA).forEach(tKey => {
-                if (altText.includes(TYPE_NAMES_ITA[tKey].toLowerCase()) || altText.includes(tKey)) {
-                  moveType = tKey;
-                }
-              });
-            }
-
-            let power = 0;
-            const cells = row.querySelectorAll('td');
-            cells.forEach(cell => {
-              const text = cell.textContent.trim();
-              if (/^\d{2,3}$/.test(text) && parseInt(text, 10) <= 250) {
-                power = parseInt(text, 10);
-              }
-            });
-
-            if (moveName && !movesSet.has(moveName.toLowerCase())) {
-              movesSet.set(moveName.toLowerCase(), {
-                name: moveName,
-                type: moveType,
-                power: power
-              });
-            }
-          }
-        });
-      });
-
-      const resultList = Array.from(movesSet.values());
-      if (resultList.length === 0) {
-        return fetchFallbackPokeAPIMoves();
-      }
-
-      return resultList;
-    } catch (err) {
-      console.warn('Wiki Proxy non raggiungibile, utilizzo fallback PokéAPI:', err);
-      return fetchFallbackPokeAPIMoves();
-    }
-  }
-
-  function fetchFallbackPokeAPIMoves() {
-    if (!pokemonA || !pokemonA.moves) return [];
-    return pokemonA.moves.map(m => {
-      const slug = m.move.name;
-      return {
-        name: getFormattedMoveName(slug),
-        type: 'normal',
-        power: 0
-      };
-    });
-  }
+  
 
   async function renderPokemonA() {
     const container = document.getElementById('content-a');
@@ -536,6 +466,8 @@ function getPokemonMoves(name) {
 
     // Estrazione completa delle mosse (Livello, MT, Uovo) tramite Proxy Wiki
     const movesDetailed = getPokemonMoves(pokemonA.name);
+    console.log(pokemonA.name);
+    console.log(movesDetailed);
 
     // Raggruppamento mosse per tipo
     const groupedMoves = {};
@@ -546,7 +478,7 @@ function getPokemonMoves(name) {
 
     let selectOptionsHtml = '';
     for (const [typeKey, movesGroup] of Object.entries(groupedMoves)) {
-      const typeLabelITA = (TYPE_NAMES_ITA[typeKey] || typeKey).toUpperCase();
+      const typeLabelITA = typeKey.toUpperCase();
       selectOptionsHtml += `<optgroup label="TIPO ${typeLabelITA}">`;
       movesGroup.forEach(m => {
 
