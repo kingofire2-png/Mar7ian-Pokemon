@@ -535,7 +535,7 @@ function getPokemonMoves(name) {
     if (!container || !pokemonA) return;
 
     // Estrazione completa delle mosse (Livello, MT, Uovo) tramite Proxy Wiki
-    const movesDetailed = await fetchMovesFromCentralWiki(pokemonA.name);
+    const movesDetailed = getPokemonMoves(pokemonA.name);
 
     // Raggruppamento mosse per tipo
     const groupedMoves = {};
@@ -549,8 +549,20 @@ function getPokemonMoves(name) {
       const typeLabelITA = (TYPE_NAMES_ITA[typeKey] || typeKey).toUpperCase();
       selectOptionsHtml += `<optgroup label="TIPO ${typeLabelITA}">`;
       movesGroup.forEach(m => {
-        selectOptionsHtml += `<option value="${m.name}" data-power="${m.power}" data-name="${m.name}">[${typeLabelITA}] ${m.name}</option>`;
-      });
+
+    selectOptionsHtml += `
+<option
+value="${m.name}"
+data-name="${m.name}"
+data-type="${m.type}"
+data-category="${m.category}"
+data-power="${m.power}"
+data-accuracy="${m.accuracy}"
+data-pp="${m.pp}">
+[${typeLabelITA}] ${m.name}
+</option>`;
+
+});
       selectOptionsHtml += `</optgroup>`;
     }
 
