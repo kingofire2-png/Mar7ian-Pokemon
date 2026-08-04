@@ -87,25 +87,49 @@
     observer.observe(document.body, { childList: true, subtree: true });
   }
 
-  async function fetchMoveDetails() {
+ async function fetchMoveDetails() {
+
     const selectEl = document.getElementById('select-move-a');
+
     if (!selectEl) return;
 
-    const moveUrl = selectEl.value;
-    if (!moveUrl) return;
+    if (selectEl.selectedIndex < 0) return;
 
-    try {
-      const res = await fetch(moveUrl);
-      const data = await res.json();
+    // Recupera i dati direttamente dall'opzione
+    const option = selectEl.options[selectEl.selectedIndex];
 
-      currentMoveCategory = data.damage_class ? data.damage_class.name : 'physical';
-      currentMoveType = data.type ? data.type.name : 'normal';
+    if (!option) return;
 
-      updateCategoryUI(currentMoveCategory, data.power || 0);
-    } catch (e) {
-      console.error("Errore recupero mossa:", e);
+    // Categoria
+    const categoryITA = option.dataset.category || "Fisico";
+
+    switch (categoryITA.toLowerCase()) {
+
+        case "fisico":
+            currentMoveCategory = "physical";
+            break;
+
+        case "speciale":
+            currentMoveCategory = "special";
+            break;
+
+        default:
+            currentMoveCategory = "status";
+            break;
+
     }
-  }
+
+    // Tipo
+    const typeITA = (option.dataset.type || "Normale").toLowerCase();
+
+    currentMoveType = TYPE_ITA_TO_ENG[typeITA] || "normal";
+
+    // Potenza
+    const power = parseInt(option.dataset.power || "0", 10);
+
+    updateCategoryUI(currentMoveCategory, power);
+
+}
 
   function updateCategoryUI(category, power) {
     const powerEl = document.getElementById('move-power-val');
