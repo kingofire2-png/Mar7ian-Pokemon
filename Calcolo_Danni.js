@@ -538,10 +538,31 @@ data-pp="${m.pp}">
         <select id="select-move-a" onchange="window.updateMoveSelectionInfo(this)" style="width: 100%; background: #121824; border: 1px solid #26334d; color: #84cc16; padding: 8px; border-radius: 6px; font-size: 0.85rem; font-weight: 700; margin-bottom: 8px;">
           ${selectOptionsHtml}
         </select>
-        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;">
-          <span id="move-ita-name" style="font-weight: 700; color: #84cc16;">Mossa: -</span>
-          <span id="move-power-val" style="font-weight: 700; color: #fff;">Potenza Reale: -</span>
-        </div>
+        <div id="move-info-card"
+     style="
+        margin-top:10px;
+        padding:10px;
+        background:#101827;
+        border:1px solid #2b3a55;
+        border-radius:8px;
+        color:#fff;
+        font-size:0.85rem;
+        line-height:1.7;
+">
+
+    <div><strong>Mossa:</strong> <span id="move-ita-name">-</span></div>
+
+    <div><strong>Tipo:</strong> <span id="move-type">-</span></div>
+
+    <div><strong>Categoria:</strong> <span id="move-category">-</span></div>
+
+    <div><strong>Potenza:</strong> <span id="move-power-val">-</span></div>
+
+    <div><strong>Precisione:</strong> <span id="move-accuracy">-</span></div>
+
+    <div><strong>PP:</strong> <span id="move-pp">-</span></div>
+
+</div>
       </div>
 
       <div style="font-size: 0.75rem; font-weight: 700; color: #84cc16; margin-bottom: 8px;">STATISTICHE (BASE + OFFSET + EV 0-32)</div>
@@ -606,19 +627,40 @@ data-pp="${m.pp}">
     }
   };
 
-  window.updateMoveSelectionInfo = function(selectElement) {
-    if (!selectElement || !selectElement.options.length) return;
+ window.updateMoveSelectionInfo = function (selectElement) {
+
+    if (!selectElement || !selectElement.options.length)
+        return;
+
     const opt = selectElement.options[selectElement.selectedIndex];
-    if (!opt) return;
 
-    const moveName = opt.getAttribute('data-name') || opt.textContent;
-    const movePower = opt.getAttribute('data-power') || '0';
+    if (!opt)
+        return;
 
-    const nameEl = document.getElementById('move-ita-name');
-    const powerEl = document.getElementById('move-power-val');
+    const moveNameEl = document.getElementById("move-ita-name");
+    const moveTypeEl = document.getElementById("move-type");
+    const moveCategoryEl = document.getElementById("move-category");
+    const movePowerEl = document.getElementById("move-power-val");
+    const moveAccuracyEl = document.getElementById("move-accuracy");
+    const movePPEl = document.getElementById("move-pp");
 
-    if (nameEl) nameEl.textContent = `Mossa: ${moveName}`;
-    if (powerEl) powerEl.textContent = `Potenza Reale: ${movePower}`;
-  };
+    if (moveNameEl)
+        moveNameEl.textContent = opt.dataset.name || "-";
+
+    if (moveTypeEl)
+        moveTypeEl.textContent = opt.dataset.type || "-";
+
+    if (moveCategoryEl)
+        moveCategoryEl.textContent = opt.dataset.category || "-";
+
+    if (movePowerEl)
+        movePowerEl.textContent = opt.dataset.power || "-";
+
+    if (moveAccuracyEl)
+        moveAccuracyEl.textContent = opt.dataset.accuracy || "-";
+
+    if (movePPEl)
+        movePPEl.textContent = opt.dataset.pp || "-";
+};
 
 })();
