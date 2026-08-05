@@ -653,8 +653,15 @@ data-pp="${m.pp}">
     if (moveCategoryEl)
         moveCategoryEl.textContent = opt.dataset.category || "-";
 
-    if (movePowerEl)
-        movePowerEl.textContent = opt.dataset.power || "-";
+    if (movePowerEl) {
+
+    const rawPower = opt.dataset.power || "";
+
+    const match = rawPower.match(/\d+/);
+
+    movePowerEl.textContent = match ? match[0] : rawPower || "-";
+
+}
 
     if (moveAccuracyEl)
         moveAccuracyEl.textContent = opt.dataset.accuracy || "-";
