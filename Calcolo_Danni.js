@@ -534,10 +534,34 @@ data-pp="${m.pp}">
       </div>
 
       <div style="background: #0b0e14; padding: 12px; border-radius: 8px; margin-bottom: 16px; border: 1px solid #26334d;">
-        <label style="font-size: 0.75rem; font-weight: 700; color: #8e9bb0; display: block; margin-bottom: 6px;">MOSSE DA POKÉMON CENTRAL WIKI (ITALIANO)</label>
-        <select id="select-move-a" onchange="window.updateMoveSelectionInfo(this)" style="width: 100%; background: #121824; border: 1px solid #26334d; color: #84cc16; padding: 8px; border-radius: 6px; font-size: 0.85rem; font-weight: 700; margin-bottom: 8px;">
-          ${selectOptionsHtml}
-        </select>
+
+    <label style="font-size: 0.75rem; font-weight: 700; color: #8e9bb0; display: block; margin-bottom: 6px;">
+        MOSSE DA POKÉMON CENTRAL WIKI (ITALIANO)
+    </label>
+
+    <input
+        type="text"
+        id="move-search"
+        placeholder="🔍 Cerca una mossa..."
+        style="
+            width:100%;
+            background:#101827;
+            color:white;
+            border:1px solid #26334d;
+            padding:8px;
+            border-radius:6px;
+            font-size:0.85rem;
+            margin-bottom:8px;
+        ">
+
+    <select
+        id="select-move-a"
+        onchange="window.updateMoveSelectionInfo(this)"
+        style="width:100%; background:#121824; border:1px solid #26334d; color:#84cc16; padding:8px; border-radius:6px; font-size:0.85rem; font-weight:700; margin-bottom:8px;">
+
+        ${selectOptionsHtml}
+
+    </select>
         <div id="move-info-card"
      style="
         margin-top:10px;
