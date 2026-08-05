@@ -88,8 +88,8 @@ function getPokemonMoves(name) {
 
     if (!name) return [];
 
-    const normalized = name.trim();
-
+    const normalized = name.trim().toLowerCase();
+    console.log("CHIAVE CERCATA:", normalized);
     const entry =
         movesDatabase[normalized] ||
         movesDatabase[normalized.replace(/ /g, "-")] ||
