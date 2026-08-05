@@ -553,7 +553,17 @@ data-pp="${m.pp}">
             font-size:0.85rem;
             margin-bottom:8px;
         ">
-
+         <div id="move-search-results"
+     style="
+        display:none;
+        max-height:220px;
+        overflow-y:auto;
+        margin-bottom:8px;
+        background:#101827;
+        border:1px solid #334155;
+        border-radius:6px;
+    ">
+</div>
     <select
         id="select-move-a"
         onchange="window.updateMoveSelectionInfo(this)"
@@ -594,7 +604,10 @@ data-pp="${m.pp}">
     `;
 
     const selectEl = document.getElementById('select-move-a');
-    if (selectEl) window.updateMoveSelectionInfo(selectEl);
+    if (selectEl) {
+    window.updateMoveSelectionInfo(selectEl);
+    window.initMoveSearch(movesDetailed);
+}
   }
 
   function renderPokemonB() {
@@ -698,6 +711,81 @@ console.log("PP:", opt.dataset.pp);
 
     if (movePPEl)
         movePPEl.textContent = opt.dataset.pp || "-";
+};
+
+  window.initMoveSearch = function (movesDetailed) {
+
+    const input = document.getElementById("move-search");
+    const results = document.getElementById("move-search-results");
+    const select = document.getElementById("select-move-a");
+
+    if (!input || !results || !select)
+        return;
+
+    input.oninput = function () {
+
+        const text = this.value.trim().toLowerCase();
+
+        results.innerHTML = "";
+
+        if (!text) {
+            results.style.display = "none";
+            return;
+        }
+
+        const found = movesDetailed.filter(m =>
+            m.name.toLowerCase().includes(text)
+        );
+
+        if (!found.length) {
+            results.style.display = "none";
+            return;
+        }
+
+        results.style.display = "block";
+
+        found.forEach(move => {
+
+            const item = document.createElement("div");
+
+            item.textContent = `[${move.type}] ${move.name}`;
+
+            item.style.padding = "8px";
+            item.style.cursor = "pointer";
+            item.style.borderBottom = "1px solid #26334d";
+            item.style.color = "#84cc16";
+
+            item.onmouseenter = () =>
+                item.style.background = "#1e293b";
+
+            item.onmouseleave = () =>
+                item.style.background = "";
+
+            item.onclick = () => {
+
+                for (let i = 0; i < select.options.length; i++) {
+
+                    if (select.options[i].dataset.name === move.name) {
+
+                        select.selectedIndex = i;
+
+                        window.updateMoveSelectionInfo(select);
+
+                        break;
+                    }
+                }
+
+                input.value = "";
+
+                results.style.display = "none";
+            };
+
+            results.appendChild(item);
+
+        });
+
+    };
+
 };
 
 })();
