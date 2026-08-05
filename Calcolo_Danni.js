@@ -634,6 +634,12 @@ data-pp="${m.pp}">
 
     const opt = selectElement.options[selectElement.selectedIndex];
     console.log(opt.dataset);
+   console.log("DATASET MOSSA:", opt.dataset);
+console.log("POWER:", opt.dataset.power);
+console.log("CATEGORY:", opt.dataset.category);
+console.log("TYPE:", opt.dataset.type);
+console.log("ACCURACY:", opt.dataset.accuracy);
+console.log("PP:", opt.dataset.pp);
     if (!opt)
         return;
 
