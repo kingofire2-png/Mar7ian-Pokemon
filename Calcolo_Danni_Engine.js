@@ -136,7 +136,7 @@
     if (powerEl) {
       const catText = CATEGORY_TRANSLATIONS[category] || category;
       const catColor = category === 'physical' ? '#f97316' : (category === 'special' ? '#3b82f6' : '#a855f7');
-      powerEl.innerHTML = `Potenza: <b>${power}</b> | Categoria: <span style="color: ${catColor}; font-weight: 800;">${catText.toUpperCase()}</span>`;
+      powerEl.textContent = power > 0 ? power : "—";
     }
   }
 
