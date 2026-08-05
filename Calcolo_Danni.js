@@ -466,8 +466,10 @@ function getPokemonMoves(name) {
 
     // Estrazione completa delle mosse (Livello, MT, Uovo) tramite Proxy Wiki
     const movesDetailed = getPokemonMoves(pokemonA.name);
-    console.log(pokemonA.name);
-    console.log(movesDetailed);
+
+console.log("Nome Pokémon:", pokemonA.name);
+console.log("Database contiene:", movesDatabase[pokemonA.name.toLowerCase()]);
+console.log("Mosse:", movesDetailed);
 
     // Raggruppamento mosse per tipo
     const groupedMoves = {};
