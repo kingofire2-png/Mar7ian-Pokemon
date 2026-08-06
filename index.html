@@ -19,6 +19,7 @@
         <select id="app-navigation-select" onchange="window.switchAppSection(this.value)" style="background: var(--card-bg); color: var(--lime); border: 1px solid var(--border-color); padding: 6px 12px; border-radius: 6px; font-weight: 700; cursor: pointer;">
           <option value="pokedex">Pokédex Principale</option>
           <option value="damage-calc">Calcolo Danni</option>
+          <option value="team-builder">Squadra VGC</option>
         </select>
       </div>
 
@@ -84,6 +85,9 @@
     <!-- 3. CONTAINER PER LA VISTA CALCOLO DANNI -->
     <div id="damage-calc-view" style="display: none;"></div>
 
+    <!-- 4. CONTAINER PER LA VISTA SQUADRA VGC -->
+    <div id="team-builder-view" style="display: none;"></div>
+
   </div>
 
   <!-- Modal Abilità -->
@@ -107,6 +111,8 @@
   <script src="./app.js?v=1.2"></script>
   <script src="./Calcolo_Danni.js"></script>
   <script src="Calcolo_Danni_Engine.js"></script>
+  <script src="team-builder-engine.js"></script>
+  <script src="team-builder.js"></script>
 
 </body>
 </html>

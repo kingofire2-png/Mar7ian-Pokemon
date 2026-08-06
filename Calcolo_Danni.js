@@ -111,18 +111,15 @@ function getPokemonMoves(name) {
   let statsBonusB = { 'hp': 0, 'attack': 0, 'defense': 0, 'special-attack': 0, 'special-defense': 0, 'speed': 0 };
 
   window.switchAppSection = function (sectionId) {
-    const pokedexView = document.getElementById('main-pokedex-view');
-    const calcView = document.getElementById('damage-calc-view');
+    const views = {
+      'pokedex': document.getElementById('main-pokedex-view'),
+      'damage-calc': document.getElementById('damage-calc-view'),
+      'team-builder': document.getElementById('team-builder-view')
+    };
 
-    if (!pokedexView || !calcView) return;
-
-    if (sectionId === 'damage-calc') {
-      pokedexView.style.display = 'none';
-      calcView.style.display = 'block';
-    } else {
-      calcView.style.display = 'none';
-      pokedexView.style.display = 'block';
-    }
+    Object.keys(views).forEach(key => {
+      if (views[key]) views[key].style.display = (key === sectionId) ? 'block' : 'none';
+    });
   };
 
   document.addEventListener('DOMContentLoaded', async () => {
