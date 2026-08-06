@@ -140,7 +140,7 @@ function getPokemonMoves(name) {
 
     calcContainer.innerHTML = `
       <header style="margin-bottom: 24px; text-align: center;">
-        <h1 style="font-size: 2.2rem; font-weight: 800; color: #84cc16;">Calcolo Danni Pokémon</h1>
+        <h1 style="font-family: var(--font-display, 'Rajdhani', sans-serif); font-size: 2.4rem; font-weight: 700; background: linear-gradient(90deg, #84cc16, #a78bfa); -webkit-background-clip: text; background-clip: text; color: transparent;">Calcolo Danni Pokémon</h1>
         <p style="color: #8e9bb0;">Statistiche (HP+75, Altre+20), EV (0-32) e ricerca avanzata.</p>
       </header>
 
@@ -148,27 +148,27 @@ function getPokemonMoves(name) {
         <button id="btn-target-a" style="padding: 10px 20px; border-radius: 8px; font-weight: 700; cursor: pointer; border: 2px solid #84cc16; background: #84cc16; color: #000;">
           Target: Pokémon A (Attaccante)
         </button>
-        <button id="btn-target-b" style="padding: 10px 20px; border-radius: 8px; font-weight: 700; cursor: pointer; border: 2px solid #26334d; background: #182030; color: #fff;">
+        <button id="btn-target-b" style="padding: 10px 20px; border-radius: 8px; font-weight: 700; cursor: pointer; border: 2px solid rgba(255,255,255,0.12); background: rgba(24,32,48,0.5); backdrop-filter: blur(8px); color: #fff;">
           Target: Pokémon B (Difensore)
         </button>
       </div>
 
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-bottom: 32px;">
-        <div id="box-a" style="background: #182030; border: 2px solid #84cc16; border-radius: 12px; padding: 20px;">
+        <div id="box-a" style="background: rgba(24,32,48,0.5); backdrop-filter: blur(16px) saturate(160%); -webkit-backdrop-filter: blur(16px) saturate(160%); box-shadow: 0 8px 28px rgba(0,0,0,0.35); border: 1px solid rgba(132,204,22,0.5); border-radius: 16px; padding: 20px;">
           <h3 style="color: #84cc16; text-align: center; margin-bottom: 12px;">POKÉMON A (ATTACCANTE)</h3>
           <div id="content-a"><p style="text-align: center; color: #8e9bb0;">Seleziona un Pokémon dalla lista sottostante</p></div>
         </div>
-        <div id="box-b" style="background: #182030; border: 2px solid #26334d; border-radius: 12px; padding: 20px;">
+        <div id="box-b" style="background: rgba(24,32,48,0.5); backdrop-filter: blur(16px) saturate(160%); -webkit-backdrop-filter: blur(16px) saturate(160%); box-shadow: 0 8px 28px rgba(0,0,0,0.35); border: 1px solid rgba(99,102,241,0.5); border-radius: 16px; padding: 20px;">
           <h3 style="color: #4f46e5; text-align: center; margin-bottom: 12px;">POKÉMON B (DIFENSORE)</h3>
           <div id="content-b"><p style="text-align: center; color: #8e9bb0;">Seleziona un Pokémon dalla lista sottostante</p></div>
         </div>
       </div>
 
-      <div style="background: #121824; border: 1px solid #26334d; border-radius: 12px; padding: 20px;">
+      <div style="background: rgba(18,24,36,0.5); backdrop-filter: blur(16px) saturate(160%); -webkit-backdrop-filter: blur(16px) saturate(160%); box-shadow: 0 8px 24px rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 20px;">
         <!-- BARRA DI RICERCA CON DROPDOWN AUTOCOMPLETE -->
         <div style="position: relative; margin-bottom: 16px;">
-          <input type="text" id="calc-search" placeholder="Cerca per nome o numero (es. Annihilape, #0979)..." autocomplete="off" style="width: 100%; padding: 12px; background: #0b0e14; border: 1px solid #26334d; border-radius: 8px; color: #fff;">
-          <div id="calc-suggestions" style="position: absolute; top: 100%; left: 0; right: 0; background: #182030; border: 1px solid #26334d; border-top: none; border-radius: 0 0 8px 8px; max-height: 220px; overflow-y: auto; z-index: 1000; display: none;"></div>
+          <input type="text" id="calc-search" placeholder="Cerca per nome o numero (es. Annihilape, #0979)..." autocomplete="off" style="width: 100%; padding: 12px; background: rgba(11,14,20,0.55); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; color: #fff;">
+          <div id="calc-suggestions" style="position: absolute; top: 100%; left: 0; right: 0; background: rgba(15,20,32,0.75); backdrop-filter: blur(18px) saturate(160%); -webkit-backdrop-filter: blur(18px) saturate(160%); border: 1px solid rgba(255,255,255,0.08); border-top: none; border-radius: 0 0 12px 12px; max-height: 220px; overflow-y: auto; z-index: 1000; display: none;"></div>
         </div>
 
         <div id="type-filters" style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px;"></div>
@@ -176,7 +176,7 @@ function getPokemonMoves(name) {
           <span id="calc-pokemon-count">0 POKÉMON TROVATI</span>
         </div>
         <div id="pokemon-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px;"></div>
-        <button id="btn-load-more" style="width: 100%; padding: 12px; margin-top: 16px; background: #182030; border: 1px solid #26334d; color: #fff; border-radius: 8px; cursor: pointer; display: none;">Carica altri</button>
+        <button id="btn-load-more" style="width: 100%; padding: 12px; margin-top: 16px; background: rgba(24,32,48,0.5); border: 1px solid rgba(255,255,255,0.08); color: #fff; border-radius: 10px; cursor: pointer; display: none;">Carica altri</button>
       </div>
     `;
 
@@ -220,13 +220,13 @@ function getPokemonMoves(name) {
       btnA.addEventListener('click', () => {
         targetSelection = 'A';
         btnA.style.background = '#84cc16'; btnA.style.borderColor = '#84cc16'; btnA.style.color = '#000';
-        btnB.style.background = '#182030'; btnB.style.borderColor = '#26334d'; btnB.style.color = '#fff';
+        btnB.style.background = 'rgba(24,32,48,0.5)'; btnB.style.borderColor = 'rgba(255,255,255,0.12)'; btnB.style.color = '#fff';
       });
 
       btnB.addEventListener('click', () => {
         targetSelection = 'B';
-        btnB.style.background = '#4f46e5'; btnB.style.borderColor = '#4f46e5'; btnB.style.color = '#fff';
-        btnA.style.background = '#182030'; btnA.style.borderColor = '#26334d'; btnA.style.color = '#fff';
+        btnB.style.background = '#6366f1'; btnB.style.borderColor = '#6366f1'; btnB.style.color = '#fff';
+        btnA.style.background = 'rgba(24,32,48,0.5)'; btnA.style.borderColor = 'rgba(255,255,255,0.12)'; btnA.style.color = '#fff';
       });
     }
 
@@ -384,8 +384,8 @@ function getPokemonMoves(name) {
       const isSelectedA = pokemonA && pokemonA.id === p.id;
       const isSelectedB = pokemonB && pokemonB.id === p.id;
 
-      let borderStyle = '1px solid #26334d';
-      let bgStyle = '#121824';
+      let borderStyle = '1px solid rgba(255,255,255,0.08)';
+      let bgStyle = 'rgba(18,24,36,0.5)';
       let badgeHtml = '';
 
       if (isSelectedA) {
@@ -399,7 +399,7 @@ function getPokemonMoves(name) {
       }
 
       return `
-        <button onclick="window.calcAssignPokemon(${p.id})" style="background: ${bgStyle}; border: ${borderStyle}; border-radius: 8px; padding: 10px; display: flex; flex-direction: column; align-items: center; cursor: pointer; color: #fff; transition: all 0.2s ease;">
+        <button onclick="window.calcAssignPokemon(${p.id})" style="background: ${bgStyle}; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: ${borderStyle}; border-radius: 10px; padding: 10px; display: flex; flex-direction: column; align-items: center; cursor: pointer; color: #fff; transition: all 0.2s ease;">
           ${badgeHtml}
           <span style="font-size: 0.7rem; color: #8e9bb0; align-self: flex-start;">#${String(p.id).padStart(4, '0')}</span>
           <img src="${p.image}" alt="${p.name}" style="width: 60px; height: 60px; object-fit: contain;" onerror="this.src='https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${p.id}.png'">

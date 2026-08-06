@@ -65,7 +65,9 @@
         display: flex; align-items: center; justify-content: center; z-index: 9999;
       }
       .damage-modal-card {
-        background: #182030; border: 2px solid #84cc16; border-radius: 16px;
+        background: rgba(18, 24, 36, 0.65); backdrop-filter: blur(22px) saturate(160%); -webkit-backdrop-filter: blur(22px) saturate(160%);
+        box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+        border: 1px solid rgba(132, 204, 22, 0.4); border-radius: 18px;
         padding: 24px; max-width: 520px; width: 90%; color: #fff;
         animation: popIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards, pulseGlow 3s infinite;
       }
