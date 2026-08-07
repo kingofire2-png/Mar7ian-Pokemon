@@ -109,6 +109,13 @@
     <button id="btn-close-about" class="modal-close-btn">Chiudi</button>
   </dialog>
 
+  <!-- Librerie: icone (lucide) e animazioni (motion, la versione vanilla-JS di Framer Motion) -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script type="module">
+    import { animate, stagger, scroll, inView } from "https://cdn.jsdelivr.net/npm/motion@latest/+esm";
+    window.Motion = { animate, stagger, scroll, inView };
+  </script>
+
   <!-- 4. CARICAMENTO DEGLI SCRIPT -->
   <script src="type-details.js"></script>
   <script src="./app.js?v=1.2"></script>
