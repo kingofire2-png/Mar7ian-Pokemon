@@ -117,7 +117,8 @@
     'Bodyguard':    { icon: '🛡️', label: 'Protezione dal Focus Fire (Bodyguard)' },
     'Anticipo':     { icon: '🛡️', label: 'Protezione dal Focus Fire (Anticipo)' },
     'Protezione':   { icon: '🛡️', label: 'Scouting/Protezione' },
-    'Distortozona': { icon: '🌀', label: 'Distortozona — controllo velocità' }
+    'Distortozona': { icon: '🌀', label: 'Distortozona — controllo velocità' },
+    'Ventoincoda': { icon: '💨', label: 'Ventoincoda — raddoppia la Velocità della squadra per 4 turni' }
   };
 
   function calculateTypeMultipliers(types) {
@@ -175,10 +176,12 @@
     offensiveTypesUsed.forEach(t => (OFFENSIVE_CHART[t] || []).forEach(x => offensiveCoverage.add(x)));
     const offensiveGaps = TYPES_CONFIG.map(t => t.id).filter(id => !offensiveCoverage.has(id));
 
-    const speedTiers = filled.map(slot => ({
-      name: slot.speciesName,
-      speed: computeStatTotal((slot.statsBase || {}).speed, (slot.evs || {}).speed || 0, 'speed', slot.nature)
-    })).sort((a, b) => b.speed - a.speed);
+    const tailwindActive = filled.some(slot => (slot.moves || []).some(m => m && m.name === 'Ventoincoda'));
+
+    const speedTiers = filled.map(slot => {
+      const speed = computeStatTotal((slot.statsBase || {}).speed, (slot.evs || {}).speed || 0, 'speed', slot.nature);
+      return { name: slot.speciesName, speed, speedTailwind: speed * 2 };
+    }).sort((a, b) => b.speed - a.speed);
 
     const avgSpeed = speedTiers.length ? speedTiers.reduce((s, x) => s + x.speed, 0) / speedTiers.length : 0;
     const suggestTrickRoom = filled.length >= 2 && avgSpeed < 100;
@@ -234,6 +237,7 @@
       offensiveCoverage: Array.from(offensiveCoverage),
       speedTiers,
       avgSpeed,
+      tailwindActive,
       synergyBadges,
       filledCount: filled.length
     };

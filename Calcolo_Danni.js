@@ -136,7 +136,7 @@ function getPokemonMoves(name) {
     const calcContainer = document.getElementById('damage-calc-view');
     if (!calcContainer) return;
 
-    calcContainer.style.cssText = 'max-width: 1280px; margin: 20px auto; padding: 20px; font-family: system-ui, sans-serif; color: #f0f4fc;';
+    calcContainer.style.cssText = 'display: none; max-width: 1280px; margin: 20px auto; padding: 20px; font-family: system-ui, sans-serif; color: #f0f4fc;';
 
     calcContainer.innerHTML = `
       <header style="margin-bottom: 24px; text-align: center;">
@@ -385,7 +385,7 @@ function getPokemonMoves(name) {
       const isSelectedB = pokemonB && pokemonB.id === p.id;
 
       let borderStyle = '1px solid rgba(255,255,255,0.08)';
-      let bgStyle = 'rgba(18,24,36,0.5)';
+      let bgStyle = 'rgba(18,24,36,0.85)';
       let badgeHtml = '';
 
       if (isSelectedA) {
@@ -399,7 +399,7 @@ function getPokemonMoves(name) {
       }
 
       return `
-        <button onclick="window.calcAssignPokemon(${p.id})" style="background: ${bgStyle}; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: ${borderStyle}; border-radius: 10px; padding: 10px; display: flex; flex-direction: column; align-items: center; cursor: pointer; color: #fff; transition: all 0.2s ease;">
+        <button onclick="window.calcAssignPokemon(${p.id})" style="background: ${bgStyle}; border: ${borderStyle}; border-radius: 10px; padding: 10px; display: flex; flex-direction: column; align-items: center; cursor: pointer; color: #fff; transition: all 0.2s ease;">
           ${badgeHtml}
           <span style="font-size: 0.7rem; color: #8e9bb0; align-self: flex-start;">#${String(p.id).padStart(4, '0')}</span>
           <img src="${p.image}" alt="${p.name}" style="width: 60px; height: 60px; object-fit: contain;" onerror="this.src='https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${p.id}.png'">
