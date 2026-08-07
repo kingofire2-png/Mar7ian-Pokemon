@@ -98,9 +98,19 @@
   function getPokemonMoves(name) {
     if (!name) return [];
     const normalized = name.trim().toLowerCase();
-    const entry = movesDatabase[normalized]
-      || movesDatabase[normalized.replace(/ /g, '-')]
+    const withHyphens = normalized.replace(/ /g, '-');
+    let entry = movesDatabase[normalized]
+      || movesDatabase[withHyphens]
       || movesDatabase[normalized.replace(/-/g, ' ')];
+
+    // Le Megaevoluzioni non cambiano mai il movepool rispetto alla forma base: se la voce
+    // Mega manca o e' vuota nel DB, ricadiamo sulla forma base (regola ufficiale di gioco).
+    if ((!entry || entry.moves.length === 0) && /-mega(-x|-y)?$|-gmax$/.test(withHyphens)) {
+      const baseKey = withHyphens.replace(/-mega(-x|-y)?$|-gmax$/, '');
+      const baseEntry = movesDatabase[baseKey];
+      if (baseEntry && baseEntry.moves.length > 0) entry = baseEntry;
+    }
+
     return entry ? entry.moves : [];
   }
 
