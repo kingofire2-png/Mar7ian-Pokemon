@@ -1,31 +1,16 @@
 /**
  * team-builder-engine.js
  * Motore di analisi per la Squadra VGC (Lotte in Doppio, Pokémon Champions).
- * Nessuna dipendenza da altri moduli: espone tutto su window.TeamBuilderEngine.
+ * Dipende da shared-data.js: costanti tipi (window.SharedData.TYPES_CONFIG/TYPE_NAMES_ITA/
+ * TYPE_CHART/OFFENSIVE_CHART) e movepool reale (window.SharedData.getPokemonMoves) per i
+ * suggerimenti. Deve caricare dopo shared-data.js. Espone tutto su window.TeamBuilderEngine.
  */
 
 (function () {
   'use strict';
 
-  const TYPES_CONFIG = [
-    { id: 'normal', name: 'Normale' }, { id: 'fire', name: 'Fuoco' },
-    { id: 'water', name: 'Acqua' }, { id: 'grass', name: 'Erba' },
-    { id: 'electric', name: 'Elettro' }, { id: 'ice', name: 'Ghiaccio' },
-    { id: 'fighting', name: 'Lotta' }, { id: 'poison', name: 'Veleno' },
-    { id: 'ground', name: 'Terra' }, { id: 'flying', name: 'Volante' },
-    { id: 'psychic', name: 'Psico' }, { id: 'bug', name: 'Coleottero' },
-    { id: 'rock', name: 'Roccia' }, { id: 'ghost', name: 'Spettro' },
-    { id: 'dragon', name: 'Drago' }, { id: 'dark', name: 'Buio' },
-    { id: 'steel', name: 'Acciaio' }, { id: 'fairy', name: 'Folletto' }
-  ];
-
-  const TYPE_NAMES_ITA = {
-    normal: 'Normale', fire: 'Fuoco', water: 'Acqua', grass: 'Erba',
-    electric: 'Elettro', ice: 'Ghiaccio', fighting: 'Lotta', poison: 'Veleno',
-    ground: 'Terra', flying: 'Volante', psychic: 'Psico', bug: 'Coleottero',
-    rock: 'Roccia', ghost: 'Spettro', dragon: 'Drago', dark: 'Buio',
-    steel: 'Acciaio', fairy: 'Folletto'
-  };
+  const TYPES_CONFIG = window.SharedData.TYPES_CONFIG;
+  const TYPE_NAMES_ITA = window.SharedData.TYPE_NAMES_ITA;
 
   const TYPE_ITA_TO_ID = {};
   Object.keys(TYPE_NAMES_ITA).forEach(id => {
@@ -38,48 +23,10 @@
   };
 
   // Matrice difensiva: TYPE_CHART[tipoDifensore][tipoAttaccante] = moltiplicatore subito
-  const TYPE_CHART = {
-    normal:   { fighting: 2, ghost: 0 },
-    fire:     { water: 2, ground: 2, rock: 2, fire: 0.5, grass: 0.5, ice: 0.5, bug: 0.5, steel: 0.5, fairy: 0.5 },
-    water:    { electric: 2, grass: 2, fire: 0.5, water: 0.5, ice: 0.5, steel: 0.5 },
-    grass:    { fire: 2, ice: 2, poison: 2, flying: 2, bug: 2, water: 0.5, grass: 0.5, electric: 0.5, ground: 0.5 },
-    electric: { ground: 2, electric: 0.5, flying: 0.5, steel: 0.5 },
-    ice:      { fire: 2, fighting: 2, rock: 2, steel: 2, ice: 0.5 },
-    fighting: { flying: 2, psychic: 2, fairy: 2, bug: 0.5, rock: 0.5, dark: 0.5 },
-    poison:   { ground: 2, psychic: 2, grass: 0.5, fighting: 0.5, poison: 0.5, bug: 0.5, fairy: 0.5 },
-    ground:   { water: 2, grass: 2, ice: 2, poison: 0.5, rock: 0.5, electric: 0 },
-    flying:   { electric: 2, ice: 2, rock: 2, grass: 0.5, fighting: 0.5, bug: 0.5, ground: 0 },
-    psychic:  { bug: 2, ghost: 2, dark: 2, fighting: 0.5, psychic: 0.5 },
-    bug:      { fire: 2, flying: 2, rock: 2, grass: 0.5, fighting: 0.5, ground: 0.5 },
-    rock:     { water: 2, grass: 2, fighting: 2, ground: 2, steel: 2, normal: 0.5, fire: 0.5, poison: 0.5, flying: 0.5 },
-    ghost:    { ghost: 2, dark: 2, poison: 0.5, bug: 0.5, normal: 0, fighting: 0 },
-    dragon:   { ice: 2, dragon: 2, fairy: 2, fire: 0.5, water: 0.5, grass: 0.5, electric: 0.5 },
-    dark:     { fighting: 2, bug: 2, fairy: 2, ghost: 0.5, dark: 0.5, psychic: 0 },
-    steel:    { fire: 2, fighting: 2, ground: 2, normal: 0.5, grass: 0.5, ice: 0.5, flying: 0.5, psychic: 0.5, bug: 0.5, rock: 0.5, dragon: 0.5, steel: 0.5, fairy: 0.5, poison: 0 },
-    fairy:    { poison: 2, steel: 2, fighting: 0.5, bug: 0.5, dark: 0.5, dragon: 0 }
-  };
+  const TYPE_CHART = window.SharedData.TYPE_CHART;
 
   // OFFENSIVE_CHART[tipoAttaccante] = lista di tipi difensori colpiti in modo super efficace
-  const OFFENSIVE_CHART = {
-    normal:   [],
-    fire:     ['grass', 'ice', 'bug', 'steel'],
-    water:    ['fire', 'ground', 'rock'],
-    grass:    ['water', 'ground', 'rock'],
-    electric: ['water', 'flying'],
-    ice:      ['grass', 'ground', 'flying', 'dragon'],
-    fighting: ['normal', 'ice', 'rock', 'dark', 'steel'],
-    poison:   ['grass', 'fairy'],
-    ground:   ['fire', 'electric', 'poison', 'rock', 'steel'],
-    flying:   ['grass', 'fighting', 'bug'],
-    psychic:  ['fighting', 'poison'],
-    bug:      ['grass', 'psychic', 'dark'],
-    rock:     ['fire', 'ice', 'flying', 'bug'],
-    ghost:    ['psychic', 'ghost'],
-    dragon:   ['dragon'],
-    dark:     ['psychic', 'ghost'],
-    steel:    ['ice', 'rock', 'fairy'],
-    fairy:    ['fighting', 'dragon', 'dark']
-  };
+  const OFFENSIVE_CHART = window.SharedData.OFFENSIVE_CHART;
 
   // 25 nature (nome italiano ufficiale, verificato) — null = neutra (nessun effetto)
   const NATURES = {
@@ -121,13 +68,23 @@
     'Ventoincoda': { icon: '💨', label: 'Ventoincoda — raddoppia la Velocità della squadra per 4 turni' }
   };
 
+  // Cache per combinazione di tipi (es. "fire,flying"): il dex ha ~1300 candidati ma solo
+  // ~150 combinazioni di tipi distinte, e non cambiano mai a runtime. Il risultato cacheato
+  // e' condiviso per riferimento tra tutti i chiamanti: nessuno lo muta, solo lettura.
+  const typeMultiplierCache = new Map();
+
   function calculateTypeMultipliers(types) {
+    const key = (types || []).slice().sort().join(',');
+    if (typeMultiplierCache.has(key)) return typeMultiplierCache.get(key);
+
     const multipliers = {};
     TYPES_CONFIG.forEach(t => { multipliers[t.id] = 1; });
     (types || []).forEach(pType => {
       const chart = TYPE_CHART[pType] || {};
       Object.keys(chart).forEach(atkType => { multipliers[atkType] *= chart[atkType]; });
     });
+
+    typeMultiplierCache.set(key, multipliers);
     return multipliers;
   }
 
@@ -243,9 +200,29 @@
     };
   }
 
+  // Versione del dex: incrementata una sola volta quando i tipi PokeAPI arrivano in modo
+  // asincrono (evento pokedex-types-ready), per invalidare la cache dei suggerimenti sotto.
+  let dexVersion = 0;
+  function bumpDexVersion() { dexVersion++; }
+
+  let lastSuggestSignature = null;
+  let lastSuggestResult = null;
+
   function suggestCandidates(analysis, candidates, excludeIds, limit) {
     const criticalWeak = Object.keys(analysis.weaknessCounts).filter(t => analysis.weaknessCounts[t] >= 2);
     const gaps = analysis.offensiveGaps || [];
+
+    // Firma economica dei soli input che contano per il punteggio: se identica all'ultima
+    // chiamata (es. una modifica EV/abilita/natura che non tocca tipi/mosse), evitiamo di
+    // riscandire l'intero dex (~1300 candidati) e restituiamo il risultato gia' calcolato.
+    const signature = JSON.stringify({
+      w: criticalWeak.slice().sort(),
+      g: gaps.slice().sort(),
+      e: Array.from(excludeIds || []).sort(),
+      v: dexVersion,
+      l: limit || 8
+    });
+    if (signature === lastSuggestSignature) return lastSuggestResult;
 
     const scored = (candidates || [])
       .filter(c => c && c.types && c.types.length && !(excludeIds && excludeIds.has(c.id)))
@@ -259,19 +236,67 @@
           else if (mult[t] < 1) { score += 1; reasons.push(`resiste a ${TYPE_NAMES_ITA[t]}`); }
         });
 
-        gaps.forEach(gapType => {
-          if (c.types.some(ct => (OFFENSIVE_CHART[ct] || []).includes(gapType))) {
-            score += 1;
-            reasons.push(`colpisce ${TYPE_NAMES_ITA[gapType]} in modo super efficace`);
+        if (gaps.length) {
+          // Copertura offensiva reale: usa le mosse effettive del candidato (gia' caricate,
+          // nessun fetch) invece di assumere che il suo tipo difensivo predica cosa colpisce.
+          const movepool = window.SharedData.getPokemonMoves(c.name) || [];
+          const coverage = new Set();
+          if (movepool.length) {
+            movepool.forEach(m => (OFFENSIVE_CHART[(m.type || '').toLowerCase()] || []).forEach(x => coverage.add(x)));
+          } else {
+            // Fallback per il raro caso in cui il movepool non sia ancora disponibile
+            // (renderAnalysis puo' eseguire prima che SharedData.movesReady si risolva se
+            // c'e' gia' una squadra salvata): euristica basata sul tipo difensivo.
+            c.types.forEach(ct => (OFFENSIVE_CHART[ct] || []).forEach(x => coverage.add(x)));
           }
-        });
+          gaps.forEach(gapType => {
+            if (coverage.has(gapType)) {
+              score += 1;
+              reasons.push(`ha una mossa che colpisce ${TYPE_NAMES_ITA[gapType]} in modo super efficace`);
+            }
+          });
+        }
 
         return { pokemon: c, score, reasons };
       })
       .filter(r => r.score > 0)
       .sort((a, b) => b.score - a.score);
 
-    return scored.slice(0, limit || 8);
+    lastSuggestSignature = signature;
+    lastSuggestResult = scored.slice(0, limit || 8);
+    return lastSuggestResult;
+  }
+
+  // Per ogni tipo scoperto (offensiveGaps), trova i tipi attaccanti che lo colpiscono in modo
+  // super efficace, poi seleziona un piccolo set di tipi consigliati con un greedy set-cover
+  // (copre il massimo di buchi col minor numero di tipi suggeriti).
+  function recommendCoverageTypes(offensiveGaps) {
+    if (!offensiveGaps || !offensiveGaps.length) return [];
+
+    const coverageCount = {};
+    TYPES_CONFIG.forEach(t => { coverageCount[t.id] = 0; });
+    offensiveGaps.forEach(gapType => {
+      TYPES_CONFIG.forEach(atk => {
+        if (TYPE_CHART[gapType] && TYPE_CHART[gapType][atk.id] === 2) coverageCount[atk.id]++;
+      });
+    });
+
+    const ranked = TYPES_CONFIG
+      .map(t => ({ type: t.id, covers: coverageCount[t.id] }))
+      .filter(r => r.covers > 0)
+      .sort((a, b) => b.covers - a.covers);
+
+    const covered = new Set();
+    const recommended = [];
+    for (const r of ranked) {
+      if (covered.size >= offensiveGaps.length) break;
+      const newlyCovers = offensiveGaps.some(g => !covered.has(g) && TYPE_CHART[g][r.type] === 2);
+      if (newlyCovers) {
+        recommended.push(r.type);
+        offensiveGaps.forEach(g => { if (TYPE_CHART[g] && TYPE_CHART[g][r.type] === 2) covered.add(g); });
+      }
+    }
+    return recommended;
   }
 
   window.TeamBuilderEngine = {
@@ -285,6 +310,8 @@
     calculateTypeMultipliers,
     computeStatTotal,
     analyzeTeam,
-    suggestCandidates
+    suggestCandidates,
+    recommendCoverageTypes,
+    bumpDexVersion
   };
 })();

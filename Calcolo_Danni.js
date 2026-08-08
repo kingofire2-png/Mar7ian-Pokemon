@@ -5,25 +5,8 @@
 (function () {
   'use strict';
 
-  const TYPES_CONFIG = [
-    { id: 'normal', name: 'Normale' }, { id: 'fire', name: 'Fuoco' },
-    { id: 'water', name: 'Acqua' }, { id: 'grass', name: 'Erba' },
-    { id: 'electric', name: 'Elettro' }, { id: 'ice', name: 'Ghiaccio' },
-    { id: 'fighting', name: 'Lotta' }, { id: 'poison', name: 'Veleno' },
-    { id: 'ground', name: 'Terra' }, { id: 'flying', name: 'Volante' },
-    { id: 'psychic', name: 'Psico' }, { id: 'bug', name: 'Coleottero' },
-    { id: 'rock', name: 'Roccia' }, { id: 'ghost', name: 'Spettro' },
-    { id: 'dragon', name: 'Drago' }, { id: 'dark', name: 'Buio' },
-    { id: 'steel', name: 'Acciaio' }, { id: 'fairy', name: 'Folletto' }
-  ];
-
-  const TYPE_NAMES_ITA = {
-    normal: 'Normale', fire: 'Fuoco', water: 'Acqua', grass: 'Erba',
-    electric: 'Elettro', ice: 'Ghiaccio', fighting: 'Lotta', poison: 'Veleno',
-    ground: 'Terra', flying: 'Volante', psychic: 'Psico', bug: 'Coleottero',
-    rock: 'Roccia', ghost: 'Spettro', dragon: 'Drago', dark: 'Buio',
-    steel: 'Acciaio', fairy: 'Folletto'
-  };
+  const TYPES_CONFIG = window.SharedData.TYPES_CONFIG;
+  const TYPE_NAMES_ITA = window.SharedData.TYPE_NAMES_ITA;
 
   const STAT_NAMES_ITA = {
     'hp': 'PS', 'attack': 'Attacco', 'defense': 'Difesa',
@@ -326,8 +309,7 @@ function getPokemonMoves(name) {
 
   async function assignPokemonSlot(id, slot) {
     try {
-      const res = await fetch(`https://pokeapi.co/api/v2/pokemon/${id}`);
-      const data = await res.json();
+      const data = await window.SharedData.getSpeciesDetail(id);
 
       const extractedTypes = data.types.map(t => t.type.name);
 

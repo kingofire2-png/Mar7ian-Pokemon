@@ -96,6 +96,10 @@
       renderAnalysis();
 
       window.addEventListener('pokedex-types-ready', () => {
+        // I tipi del dex sono arrivati dopo il primo render: invalida la cache dei
+        // suggerimenti dell'engine, altrimenti resterebbero bloccati su un risultato
+        // calcolato quando i candidati avevano ancora types: [].
+        ENGINE().bumpDexVersion();
         renderPickerGrid();
         renderAnalysis();
       });
@@ -257,6 +261,7 @@
       .vgc-analysis-block { background-image: var(--glass-sheen); background-color:rgba(18,24,36,0.85); border:1px solid rgba(255,255,255,0.08); box-shadow: 0 8px 24px rgba(0,0,0,0.3), inset 0 1px 0 var(--glass-highlight); border-radius:var(--radius-lg); padding:18px 20px; }
       .vgc-analysis-block h3 { font-size:0.9rem; margin-bottom:12px; }
       .vgc-analysis-empty { color:var(--text-muted); font-size:0.82rem; }
+      .vgc-analysis-hint { color:var(--text-muted); font-size:0.82rem; margin-bottom:10px; }
       .vgc-heatmap { display:flex; flex-direction:column; gap:8px; }
       .vgc-heat-row { display:grid; grid-template-columns:110px 1fr 70px; align-items:center; gap:10px; }
       .vgc-heat-type { background:var(--tc); color:#fff; font-size:0.65rem; font-weight:800; padding:3px 8px; border-radius:5px; text-align:center; }
@@ -462,8 +467,7 @@
   async function assignSpeciesToSlot(idx, id) {
     const team = getActiveTeam();
     try {
-      const res = await fetch(`https://pokeapi.co/api/v2/pokemon/${id}`);
-      const data = await res.json();
+      const data = await window.SharedData.getSpeciesDetail(id);
       const name = data.name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
       const statsBase = {};
@@ -547,8 +551,8 @@
       return `
         <div class="vgc-stat-row">
           <span class="vgc-stat-label">${engine.STAT_LABELS_IT[statKey]}</span>
-          <span class="vgc-stat-total">${total}</span>
-          <div class="vgc-stat-bar-bg"><div class="vgc-stat-bar-fill" style="width:${Math.min(100, (total / 300) * 100)}%"></div></div>
+          <span class="vgc-stat-total" id="vgc-stat-total-${statKey}">${total}</span>
+          <div class="vgc-stat-bar-bg"><div class="vgc-stat-bar-fill" id="vgc-stat-bar-${statKey}" style="width:${Math.min(100, (total / 300) * 100)}%"></div></div>
           <input type="number" min="0" max="32" value="${slot.evs[statKey]}" class="vgc-ev-input" onchange="window.vgcUpdateEV(${editingSlotIndex}, '${statKey}', this.value)">
         </div>
       `;
@@ -584,12 +588,36 @@
         <label>Natura<select onchange="window.vgcUpdateNature(${editingSlotIndex}, this.value)">${natureOptionsHtml}</select></label>
       </div>
 
-      <div class="vgc-ev-header">Punti Sforzo (EV 0–32 per stat) — <span class="${evTotal > 192 ? 'vgc-ev-warning' : ''}">${evTotal} totali</span></div>
+      <div class="vgc-ev-header">Punti Sforzo (EV 0–32 per stat) — <span id="vgc-ev-total" class="${evTotal > 192 ? 'vgc-ev-warning' : ''}">${evTotal} totali</span></div>
       <div class="vgc-stats-block">${statRows}</div>
 
       <div class="vgc-moves-header">Mosse</div>
       <div class="vgc-moves-grid">${moveSelectsHtml}</div>
     `;
+  }
+
+  // Aggiorna solo il totale/la barra della stat modificata e il contatore EV totale, senza
+  // ricostruire l'intero modal (abilità/oggetto/natura/mosse restano invariati durante la
+  // modifica di un EV): evita di far perdere il focus al campo su cui l'utente sta scrivendo
+  // e il conseguente re-render pesante (e riattivazione animazioni) ad ogni tasto premuto.
+  function updateSlotDetailStatsInPlace(idx, statKey) {
+    const engine = ENGINE();
+    const team = getActiveTeam();
+    const slot = team.slots[idx];
+    if (!slot) return;
+
+    const total = engine.computeStatTotal(slot.statsBase[statKey], slot.evs[statKey], statKey, slot.nature);
+    const totalEl = document.getElementById(`vgc-stat-total-${statKey}`);
+    const barEl = document.getElementById(`vgc-stat-bar-${statKey}`);
+    if (totalEl) totalEl.textContent = total;
+    if (barEl) barEl.style.width = Math.min(100, (total / 300) * 100) + '%';
+
+    const evTotal = Object.values(slot.evs).reduce((a, b) => a + b, 0);
+    const evTotalEl = document.getElementById('vgc-ev-total');
+    if (evTotalEl) {
+      evTotalEl.textContent = `${evTotal} totali`;
+      evTotalEl.className = evTotal > 192 ? 'vgc-ev-warning' : '';
+    }
   }
 
   window.vgcUpdateAbility = function (idx, slug) {
@@ -630,8 +658,13 @@
     team.slots[idx].evs[statKey] = v;
     team.updatedAt = Date.now();
     scheduleSave();
-    renderSlotDetail();
-    renderFormation();
+    // Niente renderSlotDetail()/renderFormation() qui: gli EV non sono mostrati nelle card
+    // di formazione, e ricostruire l'intero modal ad ogni tasto premuto era lo spreco
+    // principale dietro il surriscaldamento durante la modifica di una squadra. renderAnalysis()
+    // resta necessaria per lo Speed Tier (dipende dagli EV), ma grazie alla memoizzazione
+    // nell'engine non fa ripartire la scansione costosa dei suggerimenti (debolezze/buchi
+    // offensivi non cambiano con un EV).
+    updateSlotDetailStatsInPlace(idx, statKey);
     renderAnalysis();
   };
 
@@ -673,15 +706,17 @@
 
     const heatmapHtml = weakEntries.length ? weakEntries.map(e => `
       <div class="vgc-heat-row">
-        <span class="vgc-heat-type" style="--tc: var(--type-${e.type});">${(engine.TYPE_NAMES_ITA[e.type] || e.type).toUpperCase()}</span>
+        <span class="vgc-heat-type" style="--tc: var(--type-${e.type}); cursor:pointer;" onclick="window.showTypeDetails('${e.type}')" title="Clicca per i dettagli di efficacia">${(engine.TYPE_NAMES_ITA[e.type] || e.type).toUpperCase()}</span>
         <div class="vgc-heat-bar-bg"><div class="vgc-heat-bar-fill ${e.count >= 2 ? 'vgc-heat-critical' : ''}" style="width:${Math.min(100, (e.count / 6) * 100)}%"></div></div>
         <span class="vgc-heat-count">${e.count} debol${e.count > 1 ? 'i' : 'e'}</span>
       </div>
     `).join('') : `<p class="vgc-analysis-empty">Nessuna debolezza condivisa rilevata.</p>`;
 
-    const gapsHtml = analysis.offensiveGaps.length ? analysis.offensiveGaps.map(t =>
-      `<span class="vgc-chip" style="--tc: var(--type-${t});">${(engine.TYPE_NAMES_ITA[t] || t).toUpperCase()}</span>`
-    ).join('') : `<p class="vgc-analysis-empty">Copertura offensiva completa su tutti i tipi.</p>`;
+    const recommendedTypes = engine.recommendCoverageTypes(analysis.offensiveGaps);
+    const gapsHtml = recommendedTypes.length
+      ? `<p class="vgc-analysis-hint">Per coprire questi buchi, valuta di aggiungere un Pokémon con mosse di tipo:</p>
+         <div class="vgc-chip-row">${recommendedTypes.map(t => `<span class="vgc-chip" style="--tc: var(--type-${t});">${(engine.TYPE_NAMES_ITA[t] || t).toUpperCase()}</span>`).join('')}</div>`
+      : `<p class="vgc-analysis-empty">Copertura offensiva completa su tutti i tipi.</p>`;
 
     const speedHtml = analysis.speedTiers.map((s, i) => `
       <div class="vgc-speed-row ${analysis.tailwindActive ? 'vgc-speed-row-tw' : ''}">
@@ -706,7 +741,7 @@
       </section>
       <section class="vgc-analysis-block">
         <h3>⚔️ Buchi di Copertura Offensiva</h3>
-        <div class="vgc-chip-row">${gapsHtml}</div>
+        ${gapsHtml}
       </section>
       <section class="vgc-analysis-block">
         <h3>${speedTitle}</h3>

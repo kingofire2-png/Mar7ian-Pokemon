@@ -1,76 +1,10 @@
-    // Configurazione dei tipi Pokémon e colori
-    const TYPES_CONFIG = [
-      { id: 'normal', name: 'Normale' },
-      { id: 'fire', name: 'Fuoco' },
-      { id: 'water', name: 'Acqua' },
-      { id: 'grass', name: 'Erba' },
-      { id: 'electric', name: 'Elettro' },
-      { id: 'ice', name: 'Ghiaccio' },
-      { id: 'fighting', name: 'Lotta' },
-      { id: 'poison', name: 'Veleno' },
-      { id: 'ground', name: 'Terra' },
-      { id: 'flying', name: 'Volante' },
-      { id: 'psychic', name: 'Psico' },
-      { id: 'bug', name: 'Coleottero' },
-      { id: 'rock', name: 'Roccia' },
-      { id: 'ghost', name: 'Spettro' },
-      { id: 'dragon', name: 'Drago' },
-      { id: 'dark', name: 'Buio' },
-      { id: 'steel', name: 'Acciaio' },
-      { id: 'fairy', name: 'Folletto' }
-    ];
-
-    const TYPE_NAMES_ITA = {
-      normal: 'Normale', fire: 'Fuoco', water: 'Acqua', grass: 'Erba',
-      electric: 'Elettro', ice: 'Ghiaccio', fighting: 'Lotta', poison: 'Veleno',
-      ground: 'Terra', flying: 'Volante', psychic: 'Psico', bug: 'Coleottero',
-      rock: 'Roccia', ghost: 'Spettro', dragon: 'Drago', dark: 'Buio',
-      steel: 'Acciaio', fairy: 'Folletto'
-    };
-
+    // Configurazione dei tipi Pokémon e colori (fonte unica: shared-data.js)
+    const TYPES_CONFIG = window.SharedData.TYPES_CONFIG;
+    const TYPE_NAMES_ITA = window.SharedData.TYPE_NAMES_ITA;
     // Matrice dell'efficacia difensiva (danni subiti)
-    const TYPE_CHART = {
-      normal:   { fighting: 2, ghost: 0 },
-      fire:     { water: 2, ground: 2, rock: 2, fire: 0.5, grass: 0.5, ice: 0.5, bug: 0.5, steel: 0.5, fairy: 0.5 },
-      water:    { electric: 2, grass: 2, fire: 0.5, water: 0.5, ice: 0.5, steel: 0.5 },
-      grass:    { fire: 2, ice: 2, poison: 2, flying: 2, bug: 2, water: 0.5, grass: 0.5, electric: 0.5, ground: 0.5 },
-      electric: { ground: 2, electric: 0.5, flying: 0.5, steel: 0.5 },
-      ice:      { fire: 2, fighting: 2, rock: 2, steel: 2, ice: 0.5 },
-      fighting: { flying: 2, psychic: 2, fairy: 2, bug: 0.5, rock: 0.5, dark: 0.5 },
-      poison:   { ground: 2, psychic: 2, grass: 0.5, fighting: 0.5, poison: 0.5, bug: 0.5, fairy: 0.5 },
-      ground:   { water: 2, grass: 2, ice: 2, poison: 0.5, rock: 0.5, electric: 0 },
-      flying:   { electric: 2, ice: 2, rock: 2, grass: 0.5, fighting: 0.5, bug: 0.5, ground: 0 },
-      psychic:  { bug: 2, ghost: 2, dark: 2, fighting: 0.5, psychic: 0.5 },
-      bug:      { fire: 2, flying: 2, rock: 2, grass: 0.5, fighting: 0.5, ground: 0.5 },
-      rock:     { water: 2, grass: 2, fighting: 2, ground: 2, steel: 2, normal: 0.5, fire: 0.5, poison: 0.5, flying: 0.5 },
-      ghost:    { ghost: 2, dark: 2, poison: 0.5, bug: 0.5, normal: 0, fighting: 0 },
-      dragon:   { ice: 2, dragon: 2, fairy: 2, fire: 0.5, water: 0.5, grass: 0.5, electric: 0.5 },
-      dark:     { fighting: 2, bug: 2, fairy: 2, ghost: 0.5, dark: 0.5, psychic: 0 },
-      steel:    { fire: 2, fighting: 2, ground: 2, normal: 0.5, grass: 0.5, ice: 0.5, flying: 0.5, psychic: 0.5, bug: 0.5, rock: 0.5, dragon: 0.5, steel: 0.5, fairy: 0.5, poison: 0 },
-      fairy:    { poison: 2, steel: 2, fighting: 0.5, bug: 0.5, dark: 0.5, dragon: 0 }
-    };
-
+    const TYPE_CHART = window.SharedData.TYPE_CHART;
     // Matrice dell'efficacia offensiva (Super Efficace Contro)
-    const OFFENSIVE_CHART = {
-      normal:   [],
-      fire:     ['grass', 'ice', 'bug', 'steel'],
-      water:    ['fire', 'ground', 'rock'],
-      grass:    ['water', 'ground', 'rock'],
-      electric: ['water', 'flying'],
-      ice:      ['grass', 'ground', 'flying', 'dragon'],
-      fighting: ['normal', 'ice', 'rock', 'dark', 'steel'],
-      poison:   ['grass', 'fairy'],
-      ground:   ['fire', 'electric', 'poison', 'rock', 'steel'],
-      flying:   ['grass', 'fighting', 'bug'],
-      psychic:  ['fighting', 'poison'],
-      bug:      ['grass', 'psychic', 'dark'],
-      rock:     ['fire', 'ice', 'flying', 'bug'],
-      ghost:    ['psychic', 'ghost'],
-      dragon:   ['dragon'],
-      dark:     ['psychic', 'ghost'],
-      steel:    ['ice', 'rock', 'fairy'],
-      fairy:    ['fighting', 'dragon', 'dark']
-    };
+    const OFFENSIVE_CHART = window.SharedData.OFFENSIVE_CHART;
 
     const statNamesIt = {
       'hp': 'PS',
@@ -347,29 +281,6 @@
       return { resistances, immunities };
     }
 
-    
-// Calcolo tipi offensivi contro un tipo difensivo
-function getAttackEffectivenessAgainstType(defenderType) {
-  const result = {
-    superEffective: [],
-    normal: [],
-    notVeryEffective: [],
-    immune: []
-  };
-
-  TYPES_CONFIG.forEach(attacker => {
-    const mult = (TYPE_CHART[defenderType] && TYPE_CHART[defenderType][attacker.id] !== undefined)
-      ? TYPE_CHART[defenderType][attacker.id]
-      : 1;
-
-    if (mult === 2) result.superEffective.push(attacker.id);
-    else if (mult === 1) result.normal.push(attacker.id);
-    else if (mult === 0.5) result.notVeryEffective.push(attacker.id);
-    else if (mult === 0) result.immune.push(attacker.id);
-  });
-
-  return result;
-}
 
 // Calcolo Super Efficace Contro (STAB)
     function calculateSuperEffective(types) {
@@ -383,9 +294,8 @@ function getAttackEffectivenessAgainstType(defenderType) {
 
     window.selectPokemonById = async function(id) {
       try {
-        const res = await fetch(`https://pokeapi.co/api/v2/pokemon/${id}`);
-        const data = await res.json();
-        
+        const data = await window.SharedData.getSpeciesDetail(id);
+
         const formattedName = data.name
           .split('-')
           .map(word => word.charAt(0).toUpperCase() + word.slice(1))
