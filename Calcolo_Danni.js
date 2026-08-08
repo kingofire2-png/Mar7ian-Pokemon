@@ -94,12 +94,12 @@ function getPokemonMoves(name) {
 
     calcContainer.innerHTML = `
       <header style="margin-bottom: 24px; text-align: center;">
-        <h1 style="font-family: var(--font-display, 'Rajdhani', sans-serif); font-size: 2.4rem; font-weight: 700; background: linear-gradient(90deg, #84cc16, #a78bfa); -webkit-background-clip: text; background-clip: text; color: transparent;">Calcolo Danni Pokémon</h1>
-        <p style="color: #8e9bb0;">Statistiche (HP+75, Altre+20), EV (0-32) e ricerca avanzata.</p>
+        <h1 style="font-family: var(--font-display, 'Rajdhani', sans-serif); font-size: 2.4rem; font-weight: 700; background: linear-gradient(90deg, var(--accent), var(--violet)); -webkit-background-clip: text; background-clip: text; color: transparent;">Calcolo Danni Pokémon</h1>
+        <p style="color: var(--text-muted);">Statistiche (HP+75, Altre+20), EV (0-32) e ricerca avanzata.</p>
       </header>
 
       <div style="display: flex; justify-content: center; gap: 16px; margin-bottom: 24px;">
-        <button id="btn-target-a" style="padding: 10px 20px; border-radius: 8px; font-weight: 700; cursor: pointer; border: 2px solid #84cc16; background: #84cc16; color: #000;">
+        <button id="btn-target-a" style="padding: 10px 20px; border-radius: 8px; font-weight: 700; cursor: pointer; border: 2px solid var(--accent); background: var(--accent); color: #04202e;">
           Target: Pokémon A (Attaccante)
         </button>
         <button id="btn-target-b" style="padding: 10px 20px; border-radius: 8px; font-weight: 700; cursor: pointer; border: 2px solid rgba(255,255,255,0.12); background: rgba(24,32,48,0.5); backdrop-filter: blur(8px); color: #fff;">
@@ -108,25 +108,25 @@ function getPokemonMoves(name) {
       </div>
 
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-bottom: 32px;">
-        <div id="box-a" style="background: rgba(24,32,48,0.5); backdrop-filter: blur(16px) saturate(160%); -webkit-backdrop-filter: blur(16px) saturate(160%); box-shadow: 0 8px 28px rgba(0,0,0,0.35); border: 1px solid rgba(132,204,22,0.5); border-radius: 16px; padding: 20px;">
-          <h3 style="color: #84cc16; text-align: center; margin-bottom: 12px;">POKÉMON A (ATTACCANTE)</h3>
-          <div id="content-a"><p style="text-align: center; color: #8e9bb0;">Seleziona un Pokémon dalla lista sottostante</p></div>
+        <div id="box-a" style="background-image: var(--glass-sheen); background-color: rgba(24,32,48,0.45); backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); box-shadow: 0 8px 28px rgba(0,0,0,0.35), inset 0 1px 0 var(--glass-highlight); border: 1px solid rgba(56,189,248,0.5); border-radius: var(--radius-lg); padding: 20px;">
+          <h3 style="color: var(--accent); text-align: center; margin-bottom: 12px;">POKÉMON A (ATTACCANTE)</h3>
+          <div id="content-a"><p style="text-align: center; color: var(--text-muted);">Seleziona un Pokémon dalla lista sottostante</p></div>
         </div>
-        <div id="box-b" style="background: rgba(24,32,48,0.5); backdrop-filter: blur(16px) saturate(160%); -webkit-backdrop-filter: blur(16px) saturate(160%); box-shadow: 0 8px 28px rgba(0,0,0,0.35); border: 1px solid rgba(99,102,241,0.5); border-radius: 16px; padding: 20px;">
-          <h3 style="color: #4f46e5; text-align: center; margin-bottom: 12px;">POKÉMON B (DIFENSORE)</h3>
-          <div id="content-b"><p style="text-align: center; color: #8e9bb0;">Seleziona un Pokémon dalla lista sottostante</p></div>
+        <div id="box-b" style="background-image: var(--glass-sheen); background-color: rgba(24,32,48,0.45); backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); box-shadow: 0 8px 28px rgba(0,0,0,0.35), inset 0 1px 0 var(--glass-highlight); border: 1px solid rgba(167,139,250,0.5); border-radius: var(--radius-lg); padding: 20px;">
+          <h3 style="color: var(--violet); text-align: center; margin-bottom: 12px;">POKÉMON B (DIFENSORE)</h3>
+          <div id="content-b"><p style="text-align: center; color: var(--text-muted);">Seleziona un Pokémon dalla lista sottostante</p></div>
         </div>
       </div>
 
-      <div style="background: rgba(18,24,36,0.5); backdrop-filter: blur(16px) saturate(160%); -webkit-backdrop-filter: blur(16px) saturate(160%); box-shadow: 0 8px 24px rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 20px;">
+      <div style="background-image: var(--glass-sheen); background-color: rgba(18,24,36,0.45); backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); box-shadow: 0 8px 24px rgba(0,0,0,0.3), inset 0 1px 0 var(--glass-highlight); border: 1px solid rgba(255,255,255,0.08); border-radius: var(--radius-lg); padding: 20px;">
         <!-- BARRA DI RICERCA CON DROPDOWN AUTOCOMPLETE -->
         <div style="position: relative; margin-bottom: 16px;">
           <input type="text" id="calc-search" placeholder="Cerca per nome o numero (es. Annihilape, #0979)..." autocomplete="off" style="width: 100%; padding: 12px; background: rgba(11,14,20,0.55); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; color: #fff;">
-          <div id="calc-suggestions" style="position: absolute; top: 100%; left: 0; right: 0; background: rgba(15,20,32,0.75); backdrop-filter: blur(18px) saturate(160%); -webkit-backdrop-filter: blur(18px) saturate(160%); border: 1px solid rgba(255,255,255,0.08); border-top: none; border-radius: 0 0 12px 12px; max-height: 220px; overflow-y: auto; z-index: 1000; display: none;"></div>
+          <div id="calc-suggestions" style="position: absolute; top: 100%; left: 0; right: 0; background: rgba(15,20,32,0.75); backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); border: 1px solid rgba(255,255,255,0.08); border-top: none; border-radius: 0 0 12px 12px; max-height: 220px; overflow-y: auto; z-index: 1000; display: none;"></div>
         </div>
 
         <div id="type-filters" style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px;"></div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 12px; color: #8e9bb0; font-size: 0.85rem;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 12px; color: var(--text-muted); font-size: 0.85rem;">
           <span id="calc-pokemon-count">0 POKÉMON TROVATI</span>
         </div>
         <div id="pokemon-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px;"></div>
@@ -142,7 +142,7 @@ function getPokemonMoves(name) {
     const container = document.getElementById('type-filters');
     if (!container) return;
     container.innerHTML = TYPES_CONFIG.map(t => `
-      <button class="type-btn" data-type="${t.id}" style="background: #0b0e14; border: 1px solid #26334d; color: #fff; padding: 6px 12px; border-radius: 6px; font-size: 0.75rem; cursor: pointer;">
+      <button class="type-btn" data-type="${t.id}" style="background: var(--bg-dark); border: 1px solid var(--border-color); color: #fff; padding: 6px 12px; border-radius: 6px; font-size: 0.75rem; cursor: pointer;">
         ${t.name}
       </button>
     `).join('');
@@ -152,14 +152,14 @@ function getPokemonMoves(name) {
         const type = btn.getAttribute('data-type');
         if (selectedTypes.includes(type)) {
           selectedTypes = selectedTypes.filter(t => t !== type);
-          btn.style.backgroundColor = '#0b0e14';
-          btn.style.borderColor = '#26334d';
+          btn.style.backgroundColor = 'var(--bg-dark)';
+          btn.style.borderColor = 'var(--border-color)';
           btn.style.color = '#fff';
         } else if (selectedTypes.length < 2) {
           selectedTypes.push(type);
-          btn.style.backgroundColor = '#84cc16';
-          btn.style.borderColor = '#84cc16';
-          btn.style.color = '#000';
+          btn.style.backgroundColor = 'var(--accent)';
+          btn.style.borderColor = 'var(--accent)';
+          btn.style.color = '#04202e';
         }
         applyFilters();
       });
@@ -173,13 +173,13 @@ function getPokemonMoves(name) {
     if (btnA && btnB) {
       btnA.addEventListener('click', () => {
         targetSelection = 'A';
-        btnA.style.background = '#84cc16'; btnA.style.borderColor = '#84cc16'; btnA.style.color = '#000';
+        btnA.style.background = 'var(--accent)'; btnA.style.borderColor = 'var(--accent)'; btnA.style.color = '#04202e';
         btnB.style.background = 'rgba(24,32,48,0.5)'; btnB.style.borderColor = 'rgba(255,255,255,0.12)'; btnB.style.color = '#fff';
       });
 
       btnB.addEventListener('click', () => {
         targetSelection = 'B';
-        btnB.style.background = '#6366f1'; btnB.style.borderColor = '#6366f1'; btnB.style.color = '#fff';
+        btnB.style.background = 'var(--violet)'; btnB.style.borderColor = 'var(--violet)'; btnB.style.color = '#1e1033';
         btnA.style.background = 'rgba(24,32,48,0.5)'; btnA.style.borderColor = 'rgba(255,255,255,0.12)'; btnA.style.color = '#fff';
       });
     }
@@ -227,10 +227,10 @@ function getPokemonMoves(name) {
     }
 
     suggestionsBox.innerHTML = matches.map(p => `
-      <div class="suggestion-item" onclick="window.calcSelectFromSuggestion(${p.id}, '${p.name.replace(/'/g, "\\'")}')" style="padding: 10px 14px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #26334d; cursor: pointer; color: #fff;">
+      <div class="suggestion-item" onclick="window.calcSelectFromSuggestion(${p.id}, '${p.name.replace(/'/g, "\\'")}')" style="padding: 10px 14px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--border-color); cursor: pointer; color: #fff;">
         <img src="${p.image}" style="width: 32px; height: 32px; object-fit: contain;" onerror="this.src='https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${p.id}.png'">
         <span style="font-weight: 600; font-size: 0.9rem;">${p.name}</span>
-        <span style="font-size: 0.75rem; color: #8e9bb0; margin-left: auto;">#${String(p.id).padStart(4, '0')}</span>
+        <span style="font-size: 0.75rem; color: var(--text-muted); margin-left: auto;">#${String(p.id).padStart(4, '0')}</span>
       </div>
     `).join('');
 
@@ -298,19 +298,19 @@ function getPokemonMoves(name) {
       let badgeHtml = '';
 
       if (isSelectedA) {
-        borderStyle = '2px solid #84cc16';
-        bgStyle = 'rgba(132, 204, 22, 0.15)';
-        badgeHtml = `<span style="background: #84cc16; color: #000; font-weight: 800; font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; margin-bottom: 4px;">TARGET A</span>`;
+        borderStyle = '2px solid var(--accent)';
+        bgStyle = 'rgba(56, 189, 248, 0.15)';
+        badgeHtml = `<span style="background: var(--accent); color: #04202e; font-weight: 800; font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; margin-bottom: 4px;">TARGET A</span>`;
       } else if (isSelectedB) {
-        borderStyle = '2px solid #4f46e5';
-        bgStyle = 'rgba(79, 70, 229, 0.15)';
-        badgeHtml = `<span style="background: #4f46e5; color: #fff; font-weight: 800; font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; margin-bottom: 4px;">TARGET B</span>`;
+        borderStyle = '2px solid var(--violet)';
+        bgStyle = 'rgba(167, 139, 250, 0.15)';
+        badgeHtml = `<span style="background: var(--violet); color: #fff; font-weight: 800; font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; margin-bottom: 4px;">TARGET B</span>`;
       }
 
       return `
         <button onclick="window.calcAssignPokemon(${p.id})" style="background: ${bgStyle}; border: ${borderStyle}; border-radius: 10px; padding: 10px; display: flex; flex-direction: column; align-items: center; cursor: pointer; color: #fff; transition: all 0.2s ease;">
           ${badgeHtml}
-          <span style="font-size: 0.7rem; color: #8e9bb0; align-self: flex-start;">#${String(p.id).padStart(4, '0')}</span>
+          <span style="font-size: 0.7rem; color: var(--text-muted); align-self: flex-start;">#${String(p.id).padStart(4, '0')}</span>
           <img src="${p.image}" alt="${p.name}" style="width: 60px; height: 60px; object-fit: contain;" onerror="this.src='https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${p.id}.png'">
           <span style="font-size: 0.8rem; font-weight: 600; margin-top: 4px; text-align: center;">${p.name}</span>
         </button>
@@ -415,14 +415,14 @@ data-pp="${m.pp}">
 
       return `
         <div style="display: grid; grid-template-columns: 80px 50px 1fr 100px; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 0.8rem;">
-          <span style="color: #8e9bb0;">${STAT_NAMES_ITA[statKey] || statKey}</span>
+          <span style="color: var(--text-muted);">${STAT_NAMES_ITA[statKey] || statKey}</span>
           <span style="font-weight: 700;">${totalVal}</span>
-          <div style="background: #0b0e14; height: 6px; border-radius: 3px; overflow: hidden;">
-            <div style="width: ${Math.min(100, (totalVal / 300) * 100)}%; height: 100%; background: #84cc16;"></div>
+          <div style="background: var(--bg-dark); height: 6px; border-radius: 3px; overflow: hidden;">
+            <div style="width: ${Math.min(100, (totalVal / 300) * 100)}%; height: 100%; background: var(--accent);"></div>
           </div>
           <div style="display: flex; align-items: center; gap: 4px;">
-            <label style="font-size: 0.7rem; color: #8e9bb0;">EV:</label>
-            <input type="number" min="0" max="32" value="${bonusEV}" onchange="window.updateEV('A', '${statKey}', this.value)" style="width: 45px; background: #0b0e14; border: 1px solid #26334d; color: #fff; text-align: center; border-radius: 4px; padding: 2px;">
+            <label style="font-size: 0.7rem; color: var(--text-muted);">EV:</label>
+            <input type="number" min="0" max="32" value="${bonusEV}" onchange="window.updateEV('A', '${statKey}', this.value)" style="width: 45px; background: var(--bg-dark); border: 1px solid var(--border-color); color: #fff; text-align: center; border-radius: 4px; padding: 2px;">
           </div>
         </div>
       `;
@@ -433,13 +433,13 @@ data-pp="${m.pp}">
         <img src="${pokemonA.image}" style="width: 80px; height: 80px; object-fit: contain;">
         <div>
           <h3 style="font-size: 1.2rem; font-weight: 800; color: #fff;">${pokemonA.name}</h3>
-          <div>${pokemonA.types.map(t => `<span style="background: #26334d; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; margin-right: 4px;">${(TYPE_NAMES_ITA[t] || t).toUpperCase()}</span>`).join('')}</div>
+          <div>${pokemonA.types.map(t => `<span style="background: var(--border-color); padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; margin-right: 4px;">${(TYPE_NAMES_ITA[t] || t).toUpperCase()}</span>`).join('')}</div>
         </div>
       </div>
 
-      <div style="background: #0b0e14; padding: 12px; border-radius: 8px; margin-bottom: 16px; border: 1px solid #26334d;">
+      <div style="background: var(--bg-dark); padding: 12px; border-radius: 8px; margin-bottom: 16px; border: 1px solid var(--border-color);">
 
-    <label style="font-size: 0.75rem; font-weight: 700; color: #8e9bb0; display: block; margin-bottom: 6px;">
+    <label style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 6px;">
         MOSSE DA POKÉMON CENTRAL WIKI (ITALIANO)
     </label>
 
@@ -451,7 +451,7 @@ data-pp="${m.pp}">
             width:100%;
             background:#101827;
             color:white;
-            border:1px solid #26334d;
+            border:1px solid var(--border-color);
             padding:8px;
             border-radius:6px;
             font-size:0.85rem;
@@ -471,7 +471,7 @@ data-pp="${m.pp}">
     <select
         id="select-move-a"
         onchange="window.updateMoveSelectionInfo(this)"
-        style="width:100%; background:#121824; border:1px solid #26334d; color:#84cc16; padding:8px; border-radius:6px; font-size:0.85rem; font-weight:700; margin-bottom:8px;">
+        style="width:100%; background:var(--panel-bg); border:1px solid var(--border-color); color:var(--accent); padding:8px; border-radius:6px; font-size:0.85rem; font-weight:700; margin-bottom:8px;">
 
         ${selectOptionsHtml}
 
@@ -503,7 +503,7 @@ data-pp="${m.pp}">
 </div>
       </div>
 
-      <div style="font-size: 0.75rem; font-weight: 700; color: #84cc16; margin-bottom: 8px;">STATISTICHE (BASE + OFFSET + EV 0-32)</div>
+      <div style="font-size: 0.75rem; font-weight: 700; color: var(--accent); margin-bottom: 8px;">STATISTICHE (BASE + OFFSET + EV 0-32)</div>
       <div>${statsHtml}</div>
     `;
 
@@ -527,14 +527,14 @@ data-pp="${m.pp}">
 
       return `
         <div style="display: grid; grid-template-columns: 80px 50px 1fr 100px; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 0.8rem;">
-          <span style="color: #8e9bb0;">${STAT_NAMES_ITA[statKey] || statKey}</span>
+          <span style="color: var(--text-muted);">${STAT_NAMES_ITA[statKey] || statKey}</span>
           <span style="font-weight: 700;">${totalVal}</span>
-          <div style="background: #0b0e14; height: 6px; border-radius: 3px; overflow: hidden;">
-            <div style="width: ${Math.min(100, (totalVal / 300) * 100)}%; height: 100%; background: #4f46e5;"></div>
+          <div style="background: var(--bg-dark); height: 6px; border-radius: 3px; overflow: hidden;">
+            <div style="width: ${Math.min(100, (totalVal / 300) * 100)}%; height: 100%; background: var(--violet);"></div>
           </div>
           <div style="display: flex; align-items: center; gap: 4px;">
-            <label style="font-size: 0.7rem; color: #8e9bb0;">EV:</label>
-            <input type="number" min="0" max="32" value="${bonusEV}" onchange="window.updateEV('B', '${statKey}', this.value)" style="width: 45px; background: #0b0e14; border: 1px solid #26334d; color: #fff; text-align: center; border-radius: 4px; padding: 2px;">
+            <label style="font-size: 0.7rem; color: var(--text-muted);">EV:</label>
+            <input type="number" min="0" max="32" value="${bonusEV}" onchange="window.updateEV('B', '${statKey}', this.value)" style="width: 45px; background: var(--bg-dark); border: 1px solid var(--border-color); color: #fff; text-align: center; border-radius: 4px; padding: 2px;">
           </div>
         </div>
       `;
@@ -545,11 +545,11 @@ data-pp="${m.pp}">
         <img src="${pokemonB.image}" style="width: 80px; height: 80px; object-fit: contain;">
         <div>
           <h3 style="font-size: 1.2rem; font-weight: 800; color: #fff;">${pokemonB.name}</h3>
-          <div>${pokemonB.types.map(t => `<span style="background: #26334d; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; margin-right: 4px;">${(TYPE_NAMES_ITA[t] || t).toUpperCase()}</span>`).join('')}</div>
+          <div>${pokemonB.types.map(t => `<span style="background: var(--border-color); padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; margin-right: 4px;">${(TYPE_NAMES_ITA[t] || t).toUpperCase()}</span>`).join('')}</div>
         </div>
       </div>
 
-      <div style="font-size: 0.75rem; font-weight: 700; color: #4f46e5; margin-bottom: 8px;">STATISTICHE (BASE + OFFSET + EV 0-32)</div>
+      <div style="font-size: 0.75rem; font-weight: 700; color: var(--violet); margin-bottom: 8px;">STATISTICHE (BASE + OFFSET + EV 0-32)</div>
       <div>${statsHtml}</div>
     `;
   }
@@ -656,8 +656,8 @@ console.log("PP:", opt.dataset.pp);
 
             item.style.padding = "8px";
             item.style.cursor = "pointer";
-            item.style.borderBottom = "1px solid #26334d";
-            item.style.color = "#84cc16";
+            item.style.borderBottom = "1px solid var(--border-color)";
+            item.style.color = "var(--accent)";
 
             item.onmouseenter = () =>
                 item.style.background = "#1e293b";

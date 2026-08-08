@@ -78,11 +78,11 @@
     const contentHtml = `
       <div style="text-align: left; font-size: 0.85rem; line-height: 1.5;">
         <div style="margin-bottom: 12px;">
-          <strong style="color: var(--lime, #84cc16); display: block; margin-bottom: 4px;">Super Efficace (×2):</strong>
+          <strong style="color: var(--accent, #38bdf8); display: block; margin-bottom: 4px;">Super Efficace (×2):</strong>
           <div>${formatBadges(effectiveness.superEffective)}</div>
         </div>
         <div style="margin-bottom: 12px;">
-          <strong style="color: #f0f4fc; display: block; margin-bottom: 4px;">Danno Normale (×1):</strong>
+          <strong style="color: var(--text-main, #f0f4fc); display: block; margin-bottom: 4px;">Danno Normale (×1):</strong>
           <div>${formatBadges(effectiveness.normal)}</div>
         </div>
         <div style="margin-bottom: 12px;">

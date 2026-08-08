@@ -539,25 +539,25 @@ function getAttackEffectivenessAgainstType(defenderType) {
           <h2>${p.name}</h2>
           <div class="card-types">${typesHtml}</div>
           
-          <div class="weakness-label" style="color: #84cc16; margin-top: 14px;">SUPER EFFICACE CONTRO (STAB)</div>
+          <div class="weakness-label" style="color: var(--accent); margin-top: 14px;">SUPER EFFICACE CONTRO (STAB)</div>
           <div class="weaknesses-list" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px;">
             ${superEffectiveHtml.length > 0 ? superEffectiveHtml : '<span style="font-size: 0.8rem; color: var(--text-muted);">Nessuna efficacia STAB speciale.</span>'}
           </div>
 
-          <div class="weakness-label" style="color: #84cc16; margin-top: 14px;">DEBOLEZZE (DANNI SUBITI)</div>
+          <div class="weakness-label" style="color: var(--accent); margin-top: 14px;">DEBOLEZZE (DANNI SUBITI)</div>
           <div class="weaknesses-list" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px;">
             ${weaknessesHtml.length > 0 ? weaknessesHtml : '<span style="font-size: 0.8rem; color: var(--text-muted);">Nessuna debolezza speciale.</span>'}
           </div>
 
-          <div class="weakness-label" style="color: #84cc16; margin-top: 14px;">RESISTENZE E IMMUNITÀ (DANNI RIDOTTI/NULLI)</div>
+          <div class="weakness-label" style="color: var(--accent); margin-top: 14px;">RESISTENZE E IMMUNITÀ (DANNI RIDOTTI/NULLI)</div>
           <div class="weaknesses-list" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px;">
             ${defensesHtml.length > 0 ? defensesHtml : '<span style="font-size: 0.8rem; color: var(--text-muted);">Nessuna resistenza o immunità.</span>'}
           </div>
 
-          <div class="weakness-label" style="color: #84cc16; margin-top: 14px;">ABILITÀ (CLICCA PER DETTAGLI)</div>
+          <div class="weakness-label" style="color: var(--accent); margin-top: 14px;">ABILITÀ (CLICCA PER DETTAGLI)</div>
           <div class="abilities-list">${abilitiesHtml}</div>
           
-          <div class="weakness-label" style="color: #84cc16; margin-top: 16px;">STATISTICHE (LIV. 50 MOD)</div>
+          <div class="weakness-label" style="color: var(--accent); margin-top: 16px;">STATISTICHE (LIV. 50 MOD)</div>
           <div class="stats-container">${statsHtml}</div>
         </div>
       `;

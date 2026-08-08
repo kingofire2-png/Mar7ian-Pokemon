@@ -55,19 +55,20 @@
         100% { transform: scale(1); opacity: 1; }
       }
       @keyframes pulseGlow {
-        0% { box-shadow: 0 0 10px rgba(132, 204, 22, 0.2); }
-        50% { box-shadow: 0 0 25px rgba(132, 204, 22, 0.6); }
-        100% { box-shadow: 0 0 10px rgba(132, 204, 22, 0.2); }
+        0% { box-shadow: 0 0 10px rgba(56, 189, 248, 0.2); }
+        50% { box-shadow: 0 0 25px rgba(56, 189, 248, 0.55); }
+        100% { box-shadow: 0 0 10px rgba(56, 189, 248, 0.2); }
       }
       .damage-modal-overlay {
         position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-        background: rgba(5, 8, 15, 0.85); backdrop-filter: blur(6px);
+        background: rgba(5, 8, 15, 0.7); backdrop-filter: blur(6px);
         display: flex; align-items: center; justify-content: center; z-index: 9999;
       }
       .damage-modal-card {
-        background: rgba(18, 24, 36, 0.65); backdrop-filter: blur(22px) saturate(160%); -webkit-backdrop-filter: blur(22px) saturate(160%);
-        box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
-        border: 1px solid rgba(132, 204, 22, 0.4); border-radius: 18px;
+        background-image: var(--glass-sheen);
+        background-color: rgba(18, 24, 36, 0.6); backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+        box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5), inset 0 1px 0 var(--glass-highlight);
+        border: 1px solid rgba(56, 189, 248, 0.4); border-radius: var(--radius-lg);
         padding: 24px; max-width: 520px; width: 90%; color: #fff;
         animation: popIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards, pulseGlow 3s infinite;
       }
@@ -149,7 +150,7 @@
     const btn = document.createElement('button');
     btn.id = 'btn-calculate-damage';
     btn.textContent = '⚡ CALCOLA DANNO';
-    btn.style.cssText = 'width: 100%; margin-top: 16px; padding: 12px; background: linear-gradient(135deg, #84cc16, #65a30d); border: none; border-radius: 8px; color: #000; font-weight: 800; font-size: 1rem; cursor: pointer; transition: transform 0.1s;';
+    btn.style.cssText = 'width: 100%; margin-top: 16px; padding: 12px; background: linear-gradient(135deg, var(--accent), #0284c7); border: none; border-radius: 8px; color: #04202e; font-weight: 800; font-size: 1rem; cursor: pointer; transition: transform 0.1s;';
     
     btn.onclick = calculateAndShowDamage;
     boxA.appendChild(btn);
@@ -337,21 +338,21 @@
 
     overlay.innerHTML = `
       <div class="damage-modal-card">
-        <h2 style="font-size: 1.3rem; color: #84cc16; margin-bottom: 8px; text-align: center;">${data.title}</h2>
-        
+        <h2 style="font-size: 1.3rem; color: var(--accent); margin-bottom: 8px; text-align: center;">${data.title}</h2>
+
         <!-- BOX 1: ESITO KO -->
-        <div style="font-size: 1rem; text-align: center; margin-bottom: 12px; padding: 10px; background: #0b0e14; border-radius: 8px;">
+        <div style="font-size: 1rem; text-align: center; margin-bottom: 12px; padding: 10px; background: var(--bg-dark); border-radius: 8px;">
           ${data.statusText}
         </div>
 
         <!-- BOX 2: REQUISITI KO & LOTTE IN DOPPIO -->
-        <div style="font-size: 0.85rem; line-height: 1.5; color: #cbd5e1; background: #0b0e14; padding: 12px; border-radius: 8px; border: 1px solid #f59e0b; margin-bottom: 12px;">
+        <div style="font-size: 0.85rem; line-height: 1.5; color: #cbd5e1; background: var(--bg-dark); padding: 12px; border-radius: 8px; border: 1px solid #f59e0b; margin-bottom: 12px;">
           <h4 style="color: #f59e0b; margin-bottom: 6px; font-weight: 800; font-size: 0.9rem;">⚡ Requisiti KO & Lotte in Doppio:</h4>
           ${data.koRequirementHTML}
         </div>
 
         <!-- BOX 3: DETTAGLI MATEMATICI -->
-        <div style="font-size: 0.85rem; line-height: 1.5; color: #cbd5e1; background: #0b0e14; padding: 12px; border-radius: 8px; border: 1px solid #26334d;">
+        <div style="font-size: 0.85rem; line-height: 1.5; color: #cbd5e1; background: var(--bg-dark); padding: 12px; border-radius: 8px; border: 1px solid var(--border-color);">
           <h4 style="color: #fff; margin-bottom: 6px; font-weight: 800; font-size: 0.9rem;">Dettagli del Calcolo Math:</h4>
           <ul style="padding-left: 18px; margin: 0;">
             <li>Mossa: <b>${data.moveName}</b> (${data.category})</li>
@@ -363,7 +364,7 @@
           </ul>
         </div>
 
-        <button id="btn-close-modal" style="width: 100%; margin-top: 14px; padding: 10px; background: #26334d; border: none; color: #fff; font-weight: 700; border-radius: 8px; cursor: pointer;">CHIUDI</button>
+        <button id="btn-close-modal" style="width: 100%; margin-top: 14px; padding: 10px; background: var(--border-color); border: none; color: #fff; font-weight: 700; border-radius: 8px; cursor: pointer;">CHIUDI</button>
       </div>
     `;
 
