@@ -55,56 +55,10 @@
   let targetSelection = 'A';
 
   // ===============================
-// DATABASE MOSSE (Pokemon Central)
+// DATABASE MOSSE (condiviso tra le sezioni, vedi shared-data.js)
 // ===============================
-let movesDatabase = {};
-
-async function loadMovesDatabase() {
-
-    try {
-
-        const response = await fetch("./pokemon-moves.json");
-
-        movesDatabase = await response.json();
-
-        console.log(
-            "Database mosse caricato:",
-            Object.keys(movesDatabase).length,
-            "Pokémon"
-        );
-
-    } catch (err) {
-
-        console.error(
-            "Errore caricamento pokemon-moves.json",
-            err
-        );
-
-    }
-
-}
-
 function getPokemonMoves(name) {
-
-    if (!name) return [];
-
-    const normalized = name.trim().toLowerCase();
-    console.log("CHIAVE CERCATA:", normalized);
-    const entry =
-        movesDatabase[normalized] ||
-        movesDatabase[normalized.replace(/ /g, "-")] ||
-        movesDatabase[normalized.replace(/-/g, " ")];
-
-    if (!entry) {
-
-        console.warn("Mosse non trovate:", normalized);
-
-        return [];
-
-    }
-
-    return entry.moves;
-
+    return window.SharedData.getPokemonMoves(name);
 }
 
   let statsBonusA = { 'hp': 0, 'attack': 0, 'defense': 0, 'special-attack': 0, 'special-defense': 0, 'speed': 0 };
@@ -126,7 +80,7 @@ function getPokemonMoves(name) {
 
     initDamageCalcLayout();
 
-    await loadMovesDatabase();
+    await window.SharedData.movesReady;
 
     await loadPokemonDataset();
 
@@ -296,62 +250,17 @@ function getPokemonMoves(name) {
   };
 
   async function loadPokemonDataset() {
-    if (window.allPokemonData && window.allPokemonData.length > 0) {
-      localPokemonList = window.allPokemonData;
-    } else if (window.allPokemon && window.allPokemon.length > 0) {
-      localPokemonList = window.allPokemon;
-    } else {
-      try {
-        const res = await fetch('https://pokeapi.co/api/v2/pokemon?limit=1351');
-        const data = await res.json();
-        localPokemonList = data.results.map((p) => {
-          const parts = p.url.split('/').filter(Boolean);
-          const id = parseInt(parts[parts.length - 1], 10);
-          return {
-            id: id,
-            name: p.name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
-            image: `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${id}.png`,
-            types: []
-          };
-        });
-      } catch (err) {
-        console.error('Errore caricamento dataset:', err);
-      }
-    }
+    localPokemonList = await window.SharedData.dexReady;
 
     filteredPokemon = [...localPokemonList];
     renderGrid();
 
-    fetchTypesForDataset();
+    window.addEventListener('pokedex-types-ready', () => {
+      applyFilters();
+    });
 
     assignPokemonSlot(979, 'A');
     assignPokemonSlot(7, 'B');
-  }
-
-  async function fetchTypesForDataset() {
-    try {
-      const res = await fetch('https://pokeapi.co/api/v2/type');
-      const data = await res.json();
-
-      for (const t of data.results) {
-        const tRes = await fetch(t.url);
-        const tData = await tRes.json();
-        const typeName = tData.name;
-
-        tData.pokemon.forEach(pObj => {
-          const parts = pObj.pokemon.url.split('/').filter(Boolean);
-          const pId = parseInt(parts[parts.length - 1], 10);
-          const found = localPokemonList.find(p => p.id === pId);
-          if (found) {
-            if (!found.types) found.types = [];
-            if (!found.types.includes(typeName)) found.types.push(typeName);
-          }
-        });
-      }
-      applyFilters();
-    } catch (e) {
-      console.error('Errore durante la sincronizzazione dei tipi:', e);
-    }
   }
 
   function applyFilters() {
@@ -463,10 +372,6 @@ function getPokemonMoves(name) {
 
     // Estrazione completa delle mosse (Livello, MT, Uovo) tramite Proxy Wiki
     const movesDetailed = getPokemonMoves(pokemonA.name);
-
-console.log("Nome Pokémon:", pokemonA.name);
-console.log("Database contiene:", movesDatabase[pokemonA.name.toLowerCase()]);
-console.log("Mosse:", movesDetailed);
 
     // Raggruppamento mosse per tipo
     const groupedMoves = {};

@@ -144,76 +144,19 @@
       });
     }
 
-    async function fetchAllPokemonResults() {
-      const results = [];
-      let url = 'https://pokeapi.co/api/v2/pokemon?limit=100';
-
-      while (url) {
-        const response = await fetch(url);
-        if (!response.ok) throw new Error('Errore PokéAPI');
-        const data = await response.json();
-        results.push(...data.results);
-        url = data.next;
-      }
-
-      return results;
-    }
-
     async function fetchPokemonData() {
       try {
-        const results = await fetchAllPokemonResults();
-        
-        allPokemon = results.map((p) => {
-          const urlParts = p.url.split('/').filter(Boolean);
-          const id = parseInt(urlParts[urlParts.length - 1], 10);
-          
-          const formattedName = p.name
-            .split('-')
-            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-            .join(' ');
-
-          return {
-            id: id,
-            rawName: p.name,
-            name: formattedName,
-            url: p.url,
-            image: `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${id}.png`,
-            types: []
-          };
-        });
+        allPokemon = await window.SharedData.dexReady;
 
         filteredPokemon = [...allPokemon];
         renderList();
         selectPokemonById(6);
 
-        loadTypesInBackground();
+        window.addEventListener('pokedex-types-ready', () => {
+          applyFilters();
+        });
       } catch (err) {
         console.error('Errore durante il recupero dati:', err);
-      }
-    }
-
-    async function loadTypesInBackground() {
-      try {
-        const res = await fetch('https://pokeapi.co/api/v2/type?limit=20');
-        const typeData = await res.json();
-
-        for (const t of typeData.results) {
-          const typeRes = await fetch(t.url);
-          const details = await typeRes.json();
-          
-          const typeName = t.name;
-          details.pokemon.forEach(item => {
-            const urlParts = item.pokemon.url.split('/').filter(Boolean);
-            const pId = parseInt(urlParts[urlParts.length - 1], 10);
-            const pok = allPokemon.find(p => p.id === pId);
-            if (pok && !pok.types.includes(typeName)) {
-              pok.types.push(typeName);
-            }
-          });
-        }
-        applyFilters();
-      } catch (e) {
-        console.warn('Caricamento tipi completato parzialmente:', e);
       }
     }
 

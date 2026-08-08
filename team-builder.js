@@ -40,7 +40,6 @@
   let editingSlotIndex = null;
   let pickerTargetSlotIndex = null;
   let dexList = [];
-  let movesDatabase = {};
   let itemNameCache = {};
   let selectedPickerTypes = [];
   let saveDebounceTimer = null;
@@ -84,72 +83,22 @@
   }
 
   // ===============================
-  // Caricamento dati (mosse + dex con tipi)
+  // Caricamento dati (mosse + dex con tipi, condivisi tra le sezioni: vedi shared-data.js)
   // ===============================
-  async function loadMovesDatabaseLocal() {
-    try {
-      const res = await fetch('./pokemon-moves.json');
-      movesDatabase = await res.json();
-    } catch (e) {
-      console.error('Errore caricamento pokemon-moves.json (Squadra VGC):', e);
-    }
-  }
-
   function getPokemonMoves(name) {
-    if (!name) return [];
-    const normalized = name.trim().toLowerCase();
-    const withHyphens = normalized.replace(/ /g, '-');
-    let entry = movesDatabase[normalized]
-      || movesDatabase[withHyphens]
-      || movesDatabase[normalized.replace(/-/g, ' ')];
-
-    // Le Megaevoluzioni non cambiano mai il movepool rispetto alla forma base: se la voce
-    // Mega manca o e' vuota nel DB, ricadiamo sulla forma base (regola ufficiale di gioco).
-    if ((!entry || entry.moves.length === 0) && /-mega(-x|-y)?$|-gmax$/.test(withHyphens)) {
-      const baseKey = withHyphens.replace(/-mega(-x|-y)?$|-gmax$/, '');
-      const baseEntry = movesDatabase[baseKey];
-      if (baseEntry && baseEntry.moves.length > 0) entry = baseEntry;
-    }
-
-    return entry ? entry.moves : [];
+    return window.SharedData.getPokemonMoves(name);
   }
 
   async function loadDexWithTypes() {
-    if (window.allPokemon && window.allPokemon.length && window.allPokemon.some(p => p.types && p.types.length)) {
-      dexList = window.allPokemon;
-      renderPickerGrid();
-      renderAnalysis();
-      return;
-    }
     try {
-      const res = await fetch('https://pokeapi.co/api/v2/pokemon?limit=1351');
-      const data = await res.json();
-      dexList = data.results.map(p => {
-        const parts = p.url.split('/').filter(Boolean);
-        const id = parseInt(parts[parts.length - 1], 10);
-        return {
-          id,
-          name: p.name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
-          image: `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${id}.png`,
-          types: []
-        };
-      });
-      renderPickerGrid();
-
-      const typesRes = await fetch('https://pokeapi.co/api/v2/type');
-      const typesData = await typesRes.json();
-      for (const t of typesData.results) {
-        const tRes = await fetch(t.url);
-        const tData = await tRes.json();
-        tData.pokemon.forEach(po => {
-          const parts = po.pokemon.url.split('/').filter(Boolean);
-          const pId = parseInt(parts[parts.length - 1], 10);
-          const found = dexList.find(p => p.id === pId);
-          if (found && !found.types.includes(tData.name)) found.types.push(tData.name);
-        });
-      }
+      dexList = await window.SharedData.dexReady;
       renderPickerGrid();
       renderAnalysis();
+
+      window.addEventListener('pokedex-types-ready', () => {
+        renderPickerGrid();
+        renderAnalysis();
+      });
     } catch (e) {
       console.error('Errore caricamento dex Squadra VGC:', e);
     }
@@ -832,7 +781,7 @@
     renderAnalysis();
 
     await Promise.all([
-      loadMovesDatabaseLocal(),
+      window.SharedData.movesReady,
       loadDexWithTypes(),
       loadItemNames()
     ]);
