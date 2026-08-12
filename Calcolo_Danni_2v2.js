@@ -68,7 +68,7 @@
             </select>
           </label>
           <label style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700;">Con quale mossa
-            <select id="dv-move-select" onchange="window.Calc2v2.onMoveChange(this.value)" style="width:100%; margin-top:4px; background:var(--panel-bg); border:1px solid var(--border-color); color:#fff; padding:8px; border-radius:6px;">
+            <select id="dv-move-select" style="width:100%; margin-top:4px; background:var(--panel-bg); border:1px solid var(--border-color); color:#fff; padding:8px; border-radius:6px;">
               <option value="">— scegli prima l'attaccante —</option>
             </select>
           </label>
@@ -81,8 +81,6 @@
         <button id="dv-calculate-btn" onclick="window.Calc2v2.calculate()" style="width: 100%; padding: 12px; background: linear-gradient(135deg, var(--accent), #0284c7); border: none; border-radius: 8px; color: #04202e; font-weight: 800; font-size: 1rem; cursor: pointer;">⚡ CALCOLA DANNO</button>
       </div>
     `;
-
-    STAT_KEYS.forEach(() => {}); // no-op, mantiene STAT_KEYS referenziato per chiarezza
 
     Object.keys(SLOT_META).forEach(renderSlotCard);
     injectPickerModal();
@@ -151,13 +149,60 @@
             <div>${typesHtml}</div>
           </div>
         </div>
-        <select onchange="window.Calc2v2.updateItem('${key}', this.value)" style="width:100%; margin-bottom:10px; background:var(--bg-dark); border:1px solid var(--border-color); color:var(--violet); padding:6px; border-radius:6px; font-size:0.75rem;">
+        <input
+            type="text"
+            id="item-search-${key}"
+            placeholder="🔍 Cerca un oggetto..."
+            style="width:100%; background:var(--bg-dark); color:white; border:1px solid var(--border-color); padding:6px; border-radius:6px; font-size:0.72rem; margin-bottom:6px;">
+        <div id="item-search-results-${key}" style="display:none; max-height:160px; overflow-y:auto; margin-bottom:8px; background:var(--bg-dark); border:1px solid var(--border-color); border-radius:6px;"></div>
+        <select id="select-item-${key}" onchange="window.Calc2v2.updateItem('${key}', this.value)" style="width:100%; margin-bottom:10px; background:var(--bg-dark); border:1px solid var(--border-color); color:var(--violet); padding:6px; border-radius:6px; font-size:0.75rem;">
           <option value="">— Nessun oggetto —</option>
           ${itemOptionsHtml}
         </select>
         <div style="display:flex; flex-direction:column; gap:3px;">${evRowsHtml}</div>
       </div>
     `;
+    initItemSearch(key);
+  }
+
+  function initItemSearch(key) {
+    const input = document.getElementById(`item-search-${key}`);
+    const results = document.getElementById(`item-search-results-${key}`);
+    const select = document.getElementById(`select-item-${key}`);
+    if (!input || !results || !select) return;
+
+    input.oninput = function () {
+      const text = this.value.trim().toLowerCase();
+      results.innerHTML = '';
+      if (!text) { results.style.display = 'none'; return; }
+
+      const found = window.SharedData.ITEM_SLUGS
+        .filter(s => window.SharedData.getItemName(s).toLowerCase().includes(text))
+        .slice(0, 20);
+
+      if (!found.length) { results.style.display = 'none'; return; }
+      results.style.display = 'block';
+
+      found.forEach(slug => {
+        const name = window.SharedData.getItemName(slug);
+        const item = document.createElement('div');
+        item.textContent = name;
+        item.style.padding = '8px';
+        item.style.cursor = 'pointer';
+        item.style.borderBottom = '1px solid var(--border-color)';
+        item.style.color = 'var(--violet)';
+        item.style.fontSize = '0.75rem';
+        item.onmouseenter = () => { item.style.background = '#1e293b'; };
+        item.onmouseleave = () => { item.style.background = ''; };
+        item.onclick = () => {
+          select.value = slug;
+          window.Calc2v2.updateItem(key, slug);
+          input.value = '';
+          results.style.display = 'none';
+        };
+        results.appendChild(item);
+      });
+    };
   }
 
   // ===============================
@@ -301,7 +346,6 @@
     targetKey = '';
   };
 
-  window.Calc2v2.onMoveChange = function () {};
   window.Calc2v2.onTargetChange = function (key) { targetKey = key; };
 
   // ===============================
@@ -356,12 +400,19 @@
     const itemLabels = [...offense.labels, ...defense.labels];
 
     // Regola del doppio: le mosse ad area infliggono x0.75 quando colpiscono piu' di un
-    // bersaglio. Qui vale quando l'altro slot della squadra bersaglio e' occupato.
-    const opposingSide = SLOT_META[attackerKey].side === 'ally' ? 'opp' : 'ally';
-    const otherTargetKey = Object.keys(SLOT_META).find(k => SLOT_META[k].side === opposingSide && k !== targetKey);
-    const otherTargetFilled = otherTargetKey && !!slots[otherTargetKey];
-    const isSpread = window.SharedData.isSpreadMove(moveName);
-    const spreadMult = (isSpread && otherTargetFilled) ? 0.75 : 1;
+    // bersaglio in totale. "all-opponents" colpisce solo gli avversari; "all-other-pokemon"
+    // colpisce chiunque tranne l'attaccante, quindi conta anche il proprio alleato.
+    const moveTargetCategory = window.SharedData.getMoveTarget(moveName);
+    const isSpread = moveTargetCategory === 'all-opponents' || moveTargetCategory === 'all-other-pokemon';
+    let hitCount = 0;
+    if (isSpread) {
+      const opposingSide = SLOT_META[attackerKey].side === 'ally' ? 'opp' : 'ally';
+      const relevantKeys = moveTargetCategory === 'all-other-pokemon'
+        ? Object.keys(SLOT_META).filter(k => k !== attackerKey)
+        : Object.keys(SLOT_META).filter(k => SLOT_META[k].side === opposingSide);
+      hitCount = relevantKeys.filter(k => slots[k]).length;
+    }
+    const spreadMult = (isSpread && hitCount > 1) ? 0.75 : 1;
 
     const maxDamage = engine.computeDamage({
       level: 50, movePower, attackStat: offense.stat, defenseStat: defense.stat,
