@@ -46,6 +46,83 @@ function getPokemonMoves(name) {
 
   let statsBonusA = { 'hp': 0, 'attack': 0, 'defense': 0, 'special-attack': 0, 'special-defense': 0, 'speed': 0 };
   let statsBonusB = { 'hp': 0, 'attack': 0, 'defense': 0, 'special-attack': 0, 'special-defense': 0, 'speed': 0 };
+  let itemA = '';
+  let itemB = '';
+
+  function buildItemOptionsHtml(selectedSlug) {
+    return window.SharedData.ITEM_SLUGS.map(slug => {
+      const name = window.SharedData.getItemName(slug);
+      return `<option value="${slug}" ${slug === selectedSlug ? 'selected' : ''}>${name}</option>`;
+    }).join('');
+  }
+
+  function buildItemBlockHtml(slot, selectedSlug) {
+    const lower = slot.toLowerCase();
+    return `
+      <div style="background: var(--bg-dark); padding: 12px; border-radius: 8px; margin-bottom: 16px; border: 1px solid var(--border-color);">
+        <label style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 6px;">OGGETTO EQUIPAGGIATO</label>
+        <input
+            type="text"
+            id="item-search-${lower}"
+            placeholder="🔍 Cerca un oggetto..."
+            style="width:100%; background:#101827; color:white; border:1px solid var(--border-color); padding:8px; border-radius:6px; font-size:0.85rem; margin-bottom:8px;">
+        <div id="item-search-results-${lower}" style="display:none; max-height:180px; overflow-y:auto; margin-bottom:8px; background:#101827; border:1px solid #334155; border-radius:6px;"></div>
+        <select
+            id="select-item-${lower}"
+            onchange="window.updateItemSelection('${slot}', this.value)"
+            style="width:100%; background:var(--panel-bg); border:1px solid var(--border-color); color:var(--violet); padding:8px; border-radius:6px; font-size:0.85rem; font-weight:700;">
+          <option value="">— Nessun oggetto —</option>
+          ${buildItemOptionsHtml(selectedSlug)}
+        </select>
+      </div>
+    `;
+  }
+
+  window.updateItemSelection = function (slot, slug) {
+    if (slot === 'A') itemA = slug; else itemB = slug;
+    const box = document.getElementById(slot === 'A' ? 'box-a' : 'box-b');
+    if (box) box.dataset.itemSlug = slug || '';
+  };
+
+  window.initItemSearch = function (slot) {
+    const lower = slot.toLowerCase();
+    const input = document.getElementById(`item-search-${lower}`);
+    const results = document.getElementById(`item-search-results-${lower}`);
+    const select = document.getElementById(`select-item-${lower}`);
+    if (!input || !results || !select) return;
+
+    input.oninput = function () {
+      const text = this.value.trim().toLowerCase();
+      results.innerHTML = '';
+      if (!text) { results.style.display = 'none'; return; }
+
+      const found = window.SharedData.ITEM_SLUGS
+        .filter(s => window.SharedData.getItemName(s).toLowerCase().includes(text))
+        .slice(0, 20);
+
+      if (!found.length) { results.style.display = 'none'; return; }
+      results.style.display = 'block';
+
+      found.forEach(slug => {
+        const name = window.SharedData.getItemName(slug);
+        const item = document.createElement('div');
+        item.textContent = name;
+        item.style.padding = '8px';
+        item.style.cursor = 'pointer';
+        item.style.borderBottom = '1px solid var(--border-color)';
+        item.style.color = 'var(--violet)';
+        item.onmouseenter = () => { item.style.background = '#1e293b'; };
+        item.onmouseleave = () => { item.style.background = ''; };
+        item.onclick = () => {
+          select.value = slug;
+          window.updateItemSelection(slot, slug);
+          input.value = '';
+          results.style.display = 'none';
+        };
+        results.appendChild(item);
+      });
+    };
+  };
 
   window.switchAppSection = function (sectionId) {
     const views = {
@@ -59,11 +136,36 @@ function getPokemonMoves(name) {
     });
   };
 
+  window.switchCalcFormat = function (format) {
+    const view1v1 = document.getElementById('calc-1v1-view');
+    const view2v2 = document.getElementById('calc-2v2-view');
+    const btn1v1 = document.getElementById('calc-format-1v1');
+    const btn2v2 = document.getElementById('calc-format-2v2');
+    if (!view1v1 || !view2v2) return;
+
+    const active = 'border: 2px solid var(--accent); background: var(--accent); color: #04202e;';
+    const inactive = 'border: 2px solid rgba(255,255,255,0.12); background: rgba(24,32,48,0.5); backdrop-filter: blur(8px); color: #fff;';
+    const baseStyle = 'flex: 1; max-width: 220px; padding: 16px; border-radius: var(--radius-lg); font-weight: 800; font-size: 1rem; cursor: pointer;';
+
+    if (format === '2v2') {
+      view1v1.style.display = 'none';
+      view2v2.style.display = 'block';
+      if (btn1v1) btn1v1.style.cssText = baseStyle + inactive;
+      if (btn2v2) btn2v2.style.cssText = baseStyle + active;
+      window.dispatchEvent(new CustomEvent('calc-format-2v2-shown'));
+    } else {
+      view1v1.style.display = 'block';
+      view2v2.style.display = 'none';
+      if (btn1v1) btn1v1.style.cssText = baseStyle + active;
+      if (btn2v2) btn2v2.style.cssText = baseStyle + inactive;
+    }
+  };
+
   document.addEventListener('DOMContentLoaded', async () => {
 
     initDamageCalcLayout();
 
-    await window.SharedData.movesReady;
+    await Promise.all([window.SharedData.movesReady, window.SharedData.itemNamesReady]);
 
     await loadPokemonDataset();
 
@@ -81,40 +183,53 @@ function getPokemonMoves(name) {
         <p style="color: var(--text-muted);">Statistiche (HP+75, Altre+20), EV (0-32) e ricerca avanzata.</p>
       </header>
 
-      <div style="display: flex; justify-content: center; gap: 16px; margin-bottom: 24px;">
-        <button id="btn-target-a" style="padding: 10px 20px; border-radius: 8px; font-weight: 700; cursor: pointer; border: 2px solid var(--accent); background: var(--accent); color: #04202e;">
-          Target: Pokémon A (Attaccante)
+      <div id="calc-format-switcher" style="display: flex; justify-content: center; gap: 16px; margin-bottom: 28px;">
+        <button id="calc-format-1v1" onclick="window.switchCalcFormat('1v1')" style="flex: 1; max-width: 220px; padding: 16px; border-radius: var(--radius-lg); font-weight: 800; font-size: 1rem; cursor: pointer; border: 2px solid var(--accent); background: var(--accent); color: #04202e;">
+          1 vs 1
         </button>
-        <button id="btn-target-b" style="padding: 10px 20px; border-radius: 8px; font-weight: 700; cursor: pointer; border: 2px solid rgba(255,255,255,0.12); background: rgba(24,32,48,0.5); backdrop-filter: blur(8px); color: #fff;">
-          Target: Pokémon B (Difensore)
+        <button id="calc-format-2v2" onclick="window.switchCalcFormat('2v2')" style="flex: 1; max-width: 220px; padding: 16px; border-radius: var(--radius-lg); font-weight: 800; font-size: 1rem; cursor: pointer; border: 2px solid rgba(255,255,255,0.12); background: rgba(24,32,48,0.5); backdrop-filter: blur(8px); color: #fff;">
+          2 vs 2 (Doppio)
         </button>
       </div>
 
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-bottom: 32px;">
-        <div id="box-a" style="background-image: var(--glass-sheen); background-color: rgba(24,32,48,0.45); backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); box-shadow: 0 8px 28px rgba(0,0,0,0.35), inset 0 1px 0 var(--glass-highlight); border: 1px solid rgba(56,189,248,0.5); border-radius: var(--radius-lg); padding: 20px;">
-          <h3 style="color: var(--accent); text-align: center; margin-bottom: 12px;">POKÉMON A (ATTACCANTE)</h3>
-          <div id="content-a"><p style="text-align: center; color: var(--text-muted);">Seleziona un Pokémon dalla lista sottostante</p></div>
+      <div id="calc-1v1-view">
+        <div style="display: flex; justify-content: center; gap: 16px; margin-bottom: 24px;">
+          <button id="btn-target-a" style="padding: 10px 20px; border-radius: 8px; font-weight: 700; cursor: pointer; border: 2px solid var(--accent); background: var(--accent); color: #04202e;">
+            Target: Pokémon A (Attaccante)
+          </button>
+          <button id="btn-target-b" style="padding: 10px 20px; border-radius: 8px; font-weight: 700; cursor: pointer; border: 2px solid rgba(255,255,255,0.12); background: rgba(24,32,48,0.5); backdrop-filter: blur(8px); color: #fff;">
+            Target: Pokémon B (Difensore)
+          </button>
         </div>
-        <div id="box-b" style="background-image: var(--glass-sheen); background-color: rgba(24,32,48,0.45); backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); box-shadow: 0 8px 28px rgba(0,0,0,0.35), inset 0 1px 0 var(--glass-highlight); border: 1px solid rgba(167,139,250,0.5); border-radius: var(--radius-lg); padding: 20px;">
-          <h3 style="color: var(--violet); text-align: center; margin-bottom: 12px;">POKÉMON B (DIFENSORE)</h3>
-          <div id="content-b"><p style="text-align: center; color: var(--text-muted);">Seleziona un Pokémon dalla lista sottostante</p></div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-bottom: 32px;">
+          <div id="box-a" style="background-image: var(--glass-sheen); background-color: rgba(24,32,48,0.45); backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); box-shadow: 0 8px 28px rgba(0,0,0,0.35), inset 0 1px 0 var(--glass-highlight); border: 1px solid rgba(56,189,248,0.5); border-radius: var(--radius-lg); padding: 20px;">
+            <h3 style="color: var(--accent); text-align: center; margin-bottom: 12px;">POKÉMON A (ATTACCANTE)</h3>
+            <div id="content-a"><p style="text-align: center; color: var(--text-muted);">Seleziona un Pokémon dalla lista sottostante</p></div>
+          </div>
+          <div id="box-b" style="background-image: var(--glass-sheen); background-color: rgba(24,32,48,0.45); backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); box-shadow: 0 8px 28px rgba(0,0,0,0.35), inset 0 1px 0 var(--glass-highlight); border: 1px solid rgba(167,139,250,0.5); border-radius: var(--radius-lg); padding: 20px;">
+            <h3 style="color: var(--violet); text-align: center; margin-bottom: 12px;">POKÉMON B (DIFENSORE)</h3>
+            <div id="content-b"><p style="text-align: center; color: var(--text-muted);">Seleziona un Pokémon dalla lista sottostante</p></div>
+          </div>
+        </div>
+
+        <div style="background-image: var(--glass-sheen); background-color: rgba(18,24,36,0.45); backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); box-shadow: 0 8px 24px rgba(0,0,0,0.3), inset 0 1px 0 var(--glass-highlight); border: 1px solid rgba(255,255,255,0.08); border-radius: var(--radius-lg); padding: 20px;">
+          <!-- BARRA DI RICERCA CON DROPDOWN AUTOCOMPLETE -->
+          <div style="position: relative; margin-bottom: 16px;">
+            <input type="text" id="calc-search" placeholder="Cerca per nome o numero (es. Annihilape, #0979)..." autocomplete="off" style="width: 100%; padding: 12px; background: rgba(11,14,20,0.55); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; color: #fff;">
+            <div id="calc-suggestions" style="position: absolute; top: 100%; left: 0; right: 0; background: rgba(15,20,32,0.75); backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); border: 1px solid rgba(255,255,255,0.08); border-top: none; border-radius: 0 0 12px 12px; max-height: 220px; overflow-y: auto; z-index: 1000; display: none;"></div>
+          </div>
+
+          <div id="type-filters" style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px;"></div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 12px; color: var(--text-muted); font-size: 0.85rem;">
+            <span id="calc-pokemon-count">0 POKÉMON TROVATI</span>
+          </div>
+          <div id="pokemon-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px;"></div>
+          <button id="btn-load-more" style="width: 100%; padding: 12px; margin-top: 16px; background: rgba(24,32,48,0.5); border: 1px solid rgba(255,255,255,0.08); color: #fff; border-radius: 10px; cursor: pointer; display: none;">Carica altri</button>
         </div>
       </div>
 
-      <div style="background-image: var(--glass-sheen); background-color: rgba(18,24,36,0.45); backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); box-shadow: 0 8px 24px rgba(0,0,0,0.3), inset 0 1px 0 var(--glass-highlight); border: 1px solid rgba(255,255,255,0.08); border-radius: var(--radius-lg); padding: 20px;">
-        <!-- BARRA DI RICERCA CON DROPDOWN AUTOCOMPLETE -->
-        <div style="position: relative; margin-bottom: 16px;">
-          <input type="text" id="calc-search" placeholder="Cerca per nome o numero (es. Annihilape, #0979)..." autocomplete="off" style="width: 100%; padding: 12px; background: rgba(11,14,20,0.55); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; color: #fff;">
-          <div id="calc-suggestions" style="position: absolute; top: 100%; left: 0; right: 0; background: rgba(15,20,32,0.75); backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); border: 1px solid rgba(255,255,255,0.08); border-top: none; border-radius: 0 0 12px 12px; max-height: 220px; overflow-y: auto; z-index: 1000; display: none;"></div>
-        </div>
-
-        <div id="type-filters" style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px;"></div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 12px; color: var(--text-muted); font-size: 0.85rem;">
-          <span id="calc-pokemon-count">0 POKÉMON TROVATI</span>
-        </div>
-        <div id="pokemon-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px;"></div>
-        <button id="btn-load-more" style="width: 100%; padding: 12px; margin-top: 16px; background: rgba(24,32,48,0.5); border: 1px solid rgba(255,255,255,0.08); color: #fff; border-radius: 10px; cursor: pointer; display: none;">Carica altri</button>
-      </div>
+      <div id="calc-2v2-view" style="display: none;"></div>
     `;
 
     renderTypeFilters();
@@ -327,9 +442,11 @@ function getPokemonMoves(name) {
 
       if (slot === 'A') {
         pokemonA = pokemonObj;
+        itemA = '';
         await renderPokemonA();
       } else {
         pokemonB = pokemonObj;
+        itemB = '';
         renderPokemonB();
       }
 
@@ -485,6 +602,8 @@ data-pp="${m.pp}">
 </div>
       </div>
 
+      ${buildItemBlockHtml('A', itemA)}
+
       <div style="font-size: 0.75rem; font-weight: 700; color: var(--accent); margin-bottom: 8px;">STATISTICHE (BASE + OFFSET + EV 0-32)</div>
       <div>${statsHtml}</div>
     `;
@@ -494,6 +613,8 @@ data-pp="${m.pp}">
     window.updateMoveSelectionInfo(selectEl);
     window.initMoveSearch(movesDetailed);
 }
+    window.updateItemSelection('A', itemA);
+    window.initItemSearch('A');
   }
 
   function renderPokemonB() {
@@ -531,9 +652,14 @@ data-pp="${m.pp}">
         </div>
       </div>
 
+      ${buildItemBlockHtml('B', itemB)}
+
       <div style="font-size: 0.75rem; font-weight: 700; color: var(--violet); margin-bottom: 8px;">STATISTICHE (BASE + OFFSET + EV 0-32)</div>
       <div>${statsHtml}</div>
     `;
+
+    window.updateItemSelection('B', itemB);
+    window.initItemSearch('B');
   }
 
   window.updateEV = function(slot, statKey, value) {

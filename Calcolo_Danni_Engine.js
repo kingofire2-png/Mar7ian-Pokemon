@@ -24,6 +24,74 @@
   let currentMoveCategory = 'physical';
   let currentMoveType = 'normal';
 
+  // ===============================
+  // Formula di danno riusabile (livello 50) e applicazione effetti oggetto.
+  // Esposte su window.CalcDanniEngine cosi' il 2vs2 usa la stessa identica matematica.
+  // ===============================
+  function computeDamage({ level, movePower, attackStat, defenseStat, isStab, typeMultiplier, extraDamageMult = 1, spreadMult = 1 }) {
+    let bD = Math.floor(Math.floor((Math.floor((2 * level) / 5 + 2) * movePower * attackStat) / defenseStat) / 50) + 2;
+    bD = Math.floor(bD * (isStab ? 1.5 : 1));
+    bD = Math.floor(bD * typeMultiplier);
+    bD = Math.floor(bD * extraDamageMult);
+    bD = Math.floor(bD * spreadMult);
+    return bD;
+  }
+
+  // Effetti oggetto lato attaccante: puo' modificare la statistica offensiva (Bendascelta/
+  // Fascetta) e/o moltiplicare il danno finale (Sfera Assennata, Cinghia Esperta, Nastro
+  // Muscolare/Lenti Saggezza, oggetti che potenziano un tipo). typeMultiplier serve solo per
+  // la condizione della Cinghia Esperta (si attiva solo se supereffcace).
+  function applyOffensiveItemEffects({ itemSlug, category, moveType, typeMultiplier, baseStat }) {
+    const effects = window.SharedData.ITEM_EFFECTS;
+    const effect = itemSlug && effects[itemSlug];
+    const result = { stat: baseStat, damageMult: 1, labels: [] };
+    if (!effect) return result;
+
+    const itemName = window.SharedData.getItemName(itemSlug);
+    const statKey = category === 'physical' ? 'attack' : 'special-attack';
+    const statLabel = category === 'physical' ? 'Attacco' : 'Att. Sp.';
+
+    if (effect.statMult && effect.statMult[statKey]) {
+      result.stat = Math.floor(baseStat * effect.statMult[statKey]);
+      result.labels.push(`${itemName}: ${statLabel} ×${effect.statMult[statKey]}`);
+    }
+    if (effect.damageMult) {
+      result.damageMult *= effect.damageMult;
+      result.labels.push(`${itemName}: danno ×${effect.damageMult}`);
+    }
+    if (effect.damageMultByCategory && effect.damageMultByCategory[category]) {
+      result.damageMult *= effect.damageMultByCategory[category];
+      result.labels.push(`${itemName}: danno ×${effect.damageMultByCategory[category]}`);
+    }
+    if (effect.damageMultIfSuperEffective && typeMultiplier >= 2) {
+      result.damageMult *= effect.damageMultIfSuperEffective;
+      result.labels.push(`${itemName}: danno ×${effect.damageMultIfSuperEffective} (colpo supereffcace)`);
+    }
+    if (effect.typeBoost && effect.typeBoost === moveType) {
+      result.damageMult *= effect.mult;
+      result.labels.push(`${itemName}: mossa di tipo ${effect.typeBoost} ×${effect.mult}`);
+    }
+    return result;
+  }
+
+  // Effetti oggetto lato difensore: solo statistica difensiva (Corpetto Assalto, Evolcondensa).
+  function applyDefensiveItemEffects({ itemSlug, category, baseStat }) {
+    const effects = window.SharedData.ITEM_EFFECTS;
+    const effect = itemSlug && effects[itemSlug];
+    const result = { stat: baseStat, labels: [] };
+    if (!effect || !effect.statMult) return result;
+
+    const itemName = window.SharedData.getItemName(itemSlug);
+    const statKey = category === 'physical' ? 'defense' : 'special-defense';
+    const statLabel = category === 'physical' ? 'Difesa' : 'Dif. Sp.';
+
+    if (effect.statMult[statKey]) {
+      result.stat = Math.floor(baseStat * effect.statMult[statKey]);
+      result.labels.push(`${itemName}: ${statLabel} ×${effect.statMult[statKey]}`);
+    }
+    return result;
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
     injectEngineStyles();
     observeMoveSelection();
@@ -217,11 +285,25 @@
 
     const level = 50;
 
-    const computeDamageWithAtk = (atk) => {
-      let bD = Math.floor(Math.floor((Math.floor((2 * level) / 5 + 2) * movePower * atk) / defenseStat) / 50) + 2;
-      bD = Math.floor(bD * stabMultiplier);
-      return Math.floor(bD * typeMultiplier);
-    };
+    // Oggetti equipaggiati (selezionati nel box, salvati come data-item-slug)
+    const itemSlugA = document.getElementById('box-a')?.dataset.itemSlug || '';
+    const itemSlugB = document.getElementById('box-b')?.dataset.itemSlug || '';
+
+    const offense = applyOffensiveItemEffects({
+      itemSlug: itemSlugA, category: currentMoveCategory, moveType: currentMoveType,
+      typeMultiplier, baseStat: attackStat
+    });
+    const defense = applyDefensiveItemEffects({
+      itemSlug: itemSlugB, category: currentMoveCategory, baseStat: defenseStat
+    });
+    attackStat = offense.stat;
+    defenseStat = defense.stat;
+    const itemLabels = [...offense.labels, ...defense.labels];
+
+    const computeDamageWithAtk = (atk) => computeDamage({
+      level, movePower, attackStat: atk, defenseStat, isStab, typeMultiplier,
+      extraDamageMult: offense.damageMult
+    });
 
     const maxDamage = computeDamageWithAtk(attackStat);
     const minDamage = Math.floor(maxDamage * 0.85);
@@ -250,9 +332,11 @@
       let neededPower = movePower;
       if (movePower > 0) {
         while (neededPower < 300) {
-          let bD = Math.floor(Math.floor((Math.floor((2 * level) / 5 + 2) * neededPower * attackStat) / defenseStat) / 50) + 2;
-          bD = Math.floor(bD * stabMultiplier);
-          if (Math.floor(Math.floor(bD * typeMultiplier) * 0.85) >= hpB) break;
+          const bD = computeDamage({
+            level, movePower: neededPower, attackStat, defenseStat, isStab, typeMultiplier,
+            extraDamageMult: offense.damageMult
+          });
+          if (Math.floor(bD * 0.85) >= hpB) break;
           neededPower++;
         }
       }
@@ -312,7 +396,8 @@
       defenseStat,
       statOffensivaNome,
       statDifensivaNome,
-      stabMultiplier
+      stabMultiplier,
+      itemLabels
     });
   }
 
@@ -345,6 +430,7 @@
             <li>Statistica Offensiva (${data.statOffensivaNome}): <b>${data.attackStat}</b></li>
             <li>Statistica Difensiva (${data.statDifensivaNome}): <b>${data.defenseStat}</b></li>
             <li>Bonus STAB: <b>${data.stabMultiplier > 1 ? 'Sì (x1.5)' : 'No'}</b></li>
+            ${(data.itemLabels && data.itemLabels.length) ? `<li>Oggetti: <b>${data.itemLabels.join(' · ')}</b></li>` : ''}
           </ul>
         </div>
 
@@ -357,5 +443,15 @@
     document.getElementById('btn-close-modal').onclick = () => overlay.remove();
     overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
   }
+
+  // Riusata dal Calcolo Danni 2vs2 (Calcolo_Danni_2v2.js), stessa matematica e stessi
+  // effetti oggetto del calcolo 1vs1.
+  window.CalcDanniEngine = {
+    computeDamage,
+    applyOffensiveItemEffects,
+    applyDefensiveItemEffects,
+    TYPE_ITA_TO_ENG,
+    CATEGORY_TRANSLATIONS
+  };
 
 })();

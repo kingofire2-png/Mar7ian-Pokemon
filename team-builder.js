@@ -10,29 +10,6 @@
 
   const ENGINE = () => window.TeamBuilderEngine;
 
-  const ITEM_SLUGS = [
-    'focus-sash', 'leftovers', 'life-orb', 'assault-vest', 'choice-band', 'choice-specs', 'choice-scarf',
-    'rocky-helmet', 'sitrus-berry', 'mental-herb', 'electric-seed', 'grassy-seed', 'psychic-seed', 'misty-seed',
-    'booster-energy', 'clear-amulet', 'covert-cloak', 'loaded-dice', 'weakness-policy', 'safety-goggles',
-    'eject-button', 'red-card', 'room-service', 'protective-pads', 'wide-lens', 'expert-belt', 'air-balloon',
-    'black-sludge', 'flame-orb', 'toxic-orb', 'lum-berry', 'heavy-duty-boots', 'terrain-extender', 'light-clay',
-    'damp-rock', 'heat-rock', 'icy-rock', 'smooth-rock', 'metronome', 'throat-spray', 'eject-pack',
-    'mirror-herb', 'ability-shield', 'punching-glove'
-  ];
-
-  // PokeAPI non ha ancora la localizzazione italiana per questi oggetti recenti (verificato: il campo
-  // "names" della loro risposta manca della voce "it"). Nomi ufficiali italiani presi da Bulbapedia,
-  // usati solo come fallback quando PokeAPI non restituisce una traduzione.
-  const ITEM_NAME_FALLBACK_IT = {
-    'booster-energy': 'Capsula energetica',
-    'clear-amulet': 'Ciondolochiaro',
-    'covert-cloak': 'Anonimanto',
-    'loaded-dice': 'Dado truccato',
-    'mirror-herb': 'Foglia carbone',
-    'ability-shield': 'Scudo abilità',
-    'punching-glove': 'Guantone'
-  };
-
   const STORAGE_KEY = 'pokemonVGCTeams';
 
   let teams = [];
@@ -40,7 +17,6 @@
   let editingSlotIndex = null;
   let pickerTargetSlotIndex = null;
   let dexList = [];
-  let itemNameCache = {};
   let selectedPickerTypes = [];
   let saveDebounceTimer = null;
 
@@ -109,16 +85,7 @@
   }
 
   async function loadItemNames() {
-    await Promise.all(ITEM_SLUGS.map(async slug => {
-      try {
-        const res = await fetch(`https://pokeapi.co/api/v2/item/${slug}`);
-        const data = await res.json();
-        const it = data.names.find(n => n.language.name === 'it');
-        itemNameCache[slug] = it ? it.name : (ITEM_NAME_FALLBACK_IT[slug] || slug);
-      } catch (e) {
-        itemNameCache[slug] = ITEM_NAME_FALLBACK_IT[slug] || slug;
-      }
-    }));
+    await window.SharedData.itemNamesReady;
     if (editingSlotIndex !== null) renderSlotDetail();
   }
 
@@ -542,8 +509,8 @@
       return `<option value="${n}" ${n === slot.nature ? 'selected' : ''}>${n}${label}</option>`;
     }).join('');
 
-    const itemOptionsHtml = `<option value="">Nessun oggetto</option>` + ITEM_SLUGS.map(s =>
-      `<option value="${s}" ${s === slot.item ? 'selected' : ''}>${itemNameCache[s] || s}</option>`
+    const itemOptionsHtml = `<option value="">Nessun oggetto</option>` + window.SharedData.ITEM_SLUGS.map(s =>
+      `<option value="${s}" ${s === slot.item ? 'selected' : ''}>${window.SharedData.getItemName(s)}</option>`
     ).join('');
 
     const statRows = ['hp', 'attack', 'defense', 'special-attack', 'special-defense', 'speed'].map(statKey => {
@@ -636,7 +603,7 @@
     const team = getActiveTeam();
     const slot = team.slots[idx];
     slot.item = slug;
-    slot.itemDisplayName = slug ? (itemNameCache[slug] || slug) : '';
+    slot.itemDisplayName = window.SharedData.getItemName(slug);
     team.updatedAt = Date.now();
     scheduleSave();
   };

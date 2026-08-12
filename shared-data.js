@@ -235,6 +235,112 @@
 
   loadDex();
 
+  // ===============================
+  // Oggetti equipaggiabili (nomi italiani risolti a runtime via PokeAPI, caricati una sola
+  // volta qui e riusati da Squadra VGC e Calcolo Danni, stesso principio di mosse/dex sopra)
+  // ===============================
+  const ITEM_SLUGS = [
+    'focus-sash', 'leftovers', 'life-orb', 'assault-vest', 'choice-band', 'choice-specs', 'choice-scarf',
+    'rocky-helmet', 'sitrus-berry', 'mental-herb', 'electric-seed', 'grassy-seed', 'psychic-seed', 'misty-seed',
+    'booster-energy', 'clear-amulet', 'covert-cloak', 'loaded-dice', 'weakness-policy', 'safety-goggles',
+    'eject-button', 'red-card', 'room-service', 'protective-pads', 'wide-lens', 'expert-belt', 'air-balloon',
+    'black-sludge', 'flame-orb', 'toxic-orb', 'lum-berry', 'heavy-duty-boots', 'terrain-extender', 'light-clay',
+    'damp-rock', 'heat-rock', 'icy-rock', 'smooth-rock', 'metronome', 'throat-spray', 'eject-pack',
+    'mirror-herb', 'ability-shield', 'punching-glove',
+    // Oggetti che potenziano un tipo (uno per tipo) + oggetti con effetto diretto sul danno,
+    // aggiunti per il calcolo danni: verificati contro PokeAPI, esistono tutti con nome italiano.
+    'charcoal', 'mystic-water', 'miracle-seed', 'magnet', 'never-melt-ice', 'black-belt', 'poison-barb',
+    'soft-sand', 'sharp-beak', 'twisted-spoon', 'silver-powder', 'hard-stone', 'spell-tag', 'dragon-fang',
+    'black-glasses', 'metal-coat', 'silk-scarf', 'pixie-plate', 'eviolite', 'muscle-band', 'wise-glasses'
+  ];
+
+  // PokeAPI non ha ancora la localizzazione italiana per questi oggetti recenti (verificato: il campo
+  // "names" della loro risposta manca della voce "it"). Nomi ufficiali italiani presi da Bulbapedia,
+  // usati solo come fallback quando PokeAPI non restituisce una traduzione.
+  const ITEM_NAME_FALLBACK_IT = {
+    'booster-energy': 'Capsula energetica',
+    'clear-amulet': 'Ciondolochiaro',
+    'covert-cloak': 'Anonimanto',
+    'loaded-dice': 'Dado truccato',
+    'mirror-herb': 'Foglia carbone',
+    'ability-shield': 'Scudo abilità',
+    'punching-glove': 'Guantone'
+  };
+
+  // Effetti sul danno per gli oggetti con un impatto diretto e ben definito (meccaniche di gioco
+  // stabili). Gli oggetti non elencati qui restano selezionabili ma non influenzano il calcolo.
+  // statMult usa le chiavi di statistica gia' usate dal motore di calcolo (attack/defense/
+  // special-attack/special-defense); typeBoost si applica se il tipo della mossa corrisponde.
+  const ITEM_EFFECTS = {
+    'life-orb': { damageMult: 1.3 },
+    'expert-belt': { damageMultIfSuperEffective: 1.2 },
+    'muscle-band': { damageMultByCategory: { physical: 1.1 } },
+    'wise-glasses': { damageMultByCategory: { special: 1.1 } },
+    'choice-band': { statMult: { attack: 1.5 } },
+    'choice-specs': { statMult: { 'special-attack': 1.5 } },
+    'assault-vest': { statMult: { 'special-defense': 1.5 } },
+    'eviolite': { statMult: { defense: 1.5, 'special-defense': 1.5 } },
+    'charcoal': { typeBoost: 'fire', mult: 1.2 },
+    'mystic-water': { typeBoost: 'water', mult: 1.2 },
+    'miracle-seed': { typeBoost: 'grass', mult: 1.2 },
+    'magnet': { typeBoost: 'electric', mult: 1.2 },
+    'never-melt-ice': { typeBoost: 'ice', mult: 1.2 },
+    'black-belt': { typeBoost: 'fighting', mult: 1.2 },
+    'poison-barb': { typeBoost: 'poison', mult: 1.2 },
+    'soft-sand': { typeBoost: 'ground', mult: 1.2 },
+    'sharp-beak': { typeBoost: 'flying', mult: 1.2 },
+    'twisted-spoon': { typeBoost: 'psychic', mult: 1.2 },
+    'silver-powder': { typeBoost: 'bug', mult: 1.2 },
+    'hard-stone': { typeBoost: 'rock', mult: 1.2 },
+    'spell-tag': { typeBoost: 'ghost', mult: 1.2 },
+    'dragon-fang': { typeBoost: 'dragon', mult: 1.2 },
+    'black-glasses': { typeBoost: 'dark', mult: 1.2 },
+    'metal-coat': { typeBoost: 'steel', mult: 1.2 },
+    'silk-scarf': { typeBoost: 'normal', mult: 1.2 },
+    'pixie-plate': { typeBoost: 'fairy', mult: 1.2 }
+  };
+
+  let itemNameCache = {};
+  const itemNamesReady = Promise.all(ITEM_SLUGS.map(async slug => {
+    try {
+      const res = await fetch(`https://pokeapi.co/api/v2/item/${slug}`);
+      const data = await res.json();
+      const it = data.names.find(n => n.language.name === 'it');
+      itemNameCache[slug] = it ? it.name : (ITEM_NAME_FALLBACK_IT[slug] || slug);
+    } catch (e) {
+      itemNameCache[slug] = ITEM_NAME_FALLBACK_IT[slug] || slug;
+    }
+  })).then(() => itemNameCache);
+
+  function getItemName(slug) {
+    return slug ? (itemNameCache[slug] || slug) : '';
+  }
+
+  // ===============================
+  // Bersaglio delle mosse (move-targets.json, generato offline: vedi
+  // PokemonCentralScraper/build-move-targets.js). Serve al Calcolo Danni 2vs2 per sapere
+  // quali mosse colpiscono piu' bersagli (riduzione di danno x0.75 prevista dal doppio).
+  // ===============================
+  let moveTargets = {};
+  const moveTargetsReady = fetch('./move-targets.json')
+    .then(res => res.json())
+    .then(data => { moveTargets = data; return data; })
+    .catch(err => {
+      console.error('Errore caricamento move-targets.json:', err);
+      moveTargets = {};
+      return moveTargets;
+    });
+
+  function getMoveTarget(italianName) {
+    if (!italianName) return null;
+    return moveTargets[italianName] || null;
+  }
+
+  function isSpreadMove(italianName) {
+    const t = getMoveTarget(italianName);
+    return t === 'all-opponents' || t === 'all-other-pokemon';
+  }
+
   window.SharedData = {
     movesReady,
     getPokemonMoves,
@@ -246,6 +352,13 @@
     TYPE_CHART,
     TYPE_CHART_BY_ATTACKER,
     OFFENSIVE_CHART,
-    getAttackEffectivenessAgainstType
+    getAttackEffectivenessAgainstType,
+    ITEM_SLUGS,
+    ITEM_EFFECTS,
+    itemNamesReady,
+    getItemName,
+    moveTargetsReady,
+    getMoveTarget,
+    isSpreadMove
   };
 })();
