@@ -341,6 +341,105 @@
     return t === 'all-opponents' || t === 'all-other-pokemon';
   }
 
+  // ===============================
+  // Nature (25, nome italiano ufficiale) e formula statistica con Natura applicata. Stessa
+  // tabella/formula gia' usata da Squadra VGC (team-builder-engine.js), copiata qui per non
+  // dipendere dall'ordine di caricamento degli script (Calcolo Danni 2vs2 carica prima di
+  // team-builder-engine.js). null = nature neutra (nessun effetto). Mai su HP. Nessun IV.
+  // ===============================
+  const NATURES = {
+    'Ardita': null, 'Docile': null, 'Seria': null, 'Ritrosa': null, 'Furba': null,
+    'Schiva':   { up: 'attack', down: 'defense' },
+    'Audace':   { up: 'attack', down: 'speed' },
+    'Decisa':   { up: 'attack', down: 'special-attack' },
+    'Birbona':  { up: 'attack', down: 'special-defense' },
+    'Sicura':   { up: 'defense', down: 'attack' },
+    'Placida':  { up: 'defense', down: 'speed' },
+    'Scaltra':  { up: 'defense', down: 'special-attack' },
+    'Fiacca':   { up: 'defense', down: 'special-defense' },
+    'Timida':   { up: 'speed', down: 'attack' },
+    'Lesta':    { up: 'speed', down: 'defense' },
+    'Allegra':  { up: 'speed', down: 'special-attack' },
+    'Ingenua':  { up: 'speed', down: 'special-defense' },
+    'Modesta':  { up: 'special-attack', down: 'attack' },
+    'Mite':     { up: 'special-attack', down: 'defense' },
+    'Quieta':   { up: 'special-attack', down: 'speed' },
+    'Ardente':  { up: 'special-attack', down: 'special-defense' },
+    'Calma':    { up: 'special-defense', down: 'attack' },
+    'Gentile':  { up: 'special-defense', down: 'defense' },
+    'Vivace':   { up: 'special-defense', down: 'speed' },
+    'Cauta':    { up: 'special-defense', down: 'special-attack' }
+  };
+
+  function getNatureMod(natureKey, statKey) {
+    if (statKey === 'hp') return 1;
+    const n = NATURES[natureKey];
+    if (!n) return 1;
+    if (n.up === statKey) return 1.1;
+    if (n.down === statKey) return 0.9;
+    return 1;
+  }
+
+  // base + offset (75 PS / 20 altre) + EV (0-32), poi Natura. Nessun IV (coerente col resto
+  // dell'app: Pokemon Champions non li usa).
+  function computeStatTotal(base, ev, statKey, natureKey) {
+    const offset = statKey === 'hp' ? 75 : 20;
+    const raw = (base || 0) + offset + (ev || 0);
+    return Math.floor(raw * getNatureMod(natureKey, statKey));
+  }
+
+  // ===============================
+  // Mosse che modificano le statistiche (fasi), usate dal Calcolo Danni 2vs2 per applicare
+  // automaticamente l'effetto quando un alleato sceglie una di queste mosse. Nessun dato del
+  // genere esiste in pokemon-moves.json (verificato): tabella curata a mano sulle mosse piu'
+  // comuni in competitivo, nomi italiani verificati contro move-targets.json/pokemon-moves.json.
+  // Altre mosse status restano gestibili a mano tramite il regolatore di fasi nel box.
+  // ===============================
+  const STAT_BOOST_MOVES = {
+    'Danzaspada':  { target: 'self', changes: [{ stat: 'attack', stages: 2 }] },
+    'Congiura':    { target: 'self', changes: [{ stat: 'special-attack', stages: 1 }, { stat: 'special-defense', stages: 1 }] },
+    'Agilità':     { target: 'self', changes: [{ stat: 'speed', stages: 2 }] },
+    'Dragodanza':  { target: 'self', changes: [{ stat: 'attack', stages: 1 }, { stat: 'speed', stages: 1 }] },
+    'Granfisico':  { target: 'self', changes: [{ stat: 'attack', stages: 1 }, { stat: 'defense', stages: 1 }] },
+    'Ferroscudo':  { target: 'self', changes: [{ stat: 'defense', stages: 2 }] },
+    'Arrotola':    { target: 'self', changes: [{ stat: 'attack', stages: 1 }, { stat: 'defense', stages: 1 }] },
+    'Gettaguscio': { target: 'self', changes: [{ stat: 'attack', stages: 2 }, { stat: 'special-attack', stages: 2 }, { stat: 'speed', stages: 2 }, { stat: 'defense', stages: -1 }, { stat: 'special-defense', stages: -1 }] },
+    'Coaching':    { target: 'ally', changes: [{ stat: 'attack', stages: 1 }, { stat: 'defense', stages: 1 }] }
+  };
+
+  // ===============================
+  // Categorie oggetti per il picker del Calcolo Danni 2vs2 (raggruppamento per tema di gioco,
+  // copre tutti i 65 ITEM_SLUGS). "other" e' per gli oggetti di stato auto-inflitto che non
+  // rientrano nelle altre 3 categorie richieste (danno / difesa / statistiche-utilita').
+  // ===============================
+  const ITEM_CATEGORY_LABELS = { damage: 'Danno', defense: 'Difesa', utility: 'Statistiche/Utilità', other: 'Altro' };
+  const ITEM_CATEGORIES = {
+    'life-orb': 'damage', 'choice-band': 'damage', 'choice-specs': 'damage', 'expert-belt': 'damage',
+    'muscle-band': 'damage', 'wise-glasses': 'damage', 'metronome': 'damage', 'punching-glove': 'damage',
+    'charcoal': 'damage', 'mystic-water': 'damage', 'miracle-seed': 'damage', 'magnet': 'damage',
+    'never-melt-ice': 'damage', 'black-belt': 'damage', 'poison-barb': 'damage', 'soft-sand': 'damage',
+    'sharp-beak': 'damage', 'twisted-spoon': 'damage', 'silver-powder': 'damage', 'hard-stone': 'damage',
+    'spell-tag': 'damage', 'dragon-fang': 'damage', 'black-glasses': 'damage', 'metal-coat': 'damage',
+    'silk-scarf': 'damage', 'pixie-plate': 'damage',
+
+    'assault-vest': 'defense', 'eviolite': 'defense', 'rocky-helmet': 'defense', 'leftovers': 'defense',
+    'sitrus-berry': 'defense', 'focus-sash': 'defense', 'heavy-duty-boots': 'defense', 'safety-goggles': 'defense',
+    'covert-cloak': 'defense', 'protective-pads': 'defense', 'clear-amulet': 'defense', 'ability-shield': 'defense',
+    'mental-herb': 'defense', 'lum-berry': 'defense', 'black-sludge': 'defense',
+
+    'choice-scarf': 'utility', 'electric-seed': 'utility', 'grassy-seed': 'utility', 'psychic-seed': 'utility',
+    'misty-seed': 'utility', 'booster-energy': 'utility', 'loaded-dice': 'utility', 'weakness-policy': 'utility',
+    'eject-button': 'utility', 'red-card': 'utility', 'room-service': 'utility', 'wide-lens': 'utility',
+    'air-balloon': 'utility', 'terrain-extender': 'utility', 'light-clay': 'utility', 'damp-rock': 'utility',
+    'heat-rock': 'utility', 'icy-rock': 'utility', 'smooth-rock': 'utility', 'throat-spray': 'utility',
+    'eject-pack': 'utility', 'mirror-herb': 'utility',
+
+    'flame-orb': 'other', 'toxic-orb': 'other'
+  };
+  function getItemCategory(slug) {
+    return ITEM_CATEGORIES[slug] || 'other';
+  }
+
   window.SharedData = {
     movesReady,
     getPokemonMoves,
@@ -359,6 +458,12 @@
     getItemName,
     moveTargetsReady,
     getMoveTarget,
-    isSpreadMove
+    isSpreadMove,
+    NATURES,
+    getNatureMod,
+    computeStatTotal,
+    STAT_BOOST_MOVES,
+    ITEM_CATEGORY_LABELS,
+    getItemCategory
   };
 })();

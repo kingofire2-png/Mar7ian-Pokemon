@@ -1,10 +1,13 @@
 /**
  * Calcolo_Danni_2v2.js
- * Modalita' 2vs2 (Doppio) del Calcolo Danni: 4 riquadri (2 alleati + 2 avversari), scegli chi
- * attacca, con quale mossa e chi e' il bersaglio. Riusa i dati condivisi (shared-data.js) e la
- * stessa matematica/effetti oggetto del calcolo 1vs1 (window.CalcDanniEngine), per non
- * duplicare formula e regole - qui c'e' solo l'interfaccia e la logica specifica del doppio
- * (riduzione di danno x0.75 sulle mosse ad area).
+ * Modalita' 2vs2 (Doppio) del Calcolo Danni, stile turno VGC: i 2 riquadri alleati sono box
+ * "attaccante" (Pokemon + oggetto + natura + mossa + bersaglio + fasi statistiche + EV), i 2
+ * riquadri avversari sono box "bersaglio" (stessi dati tranne mossa/bersaglio). Un solo click
+ * su "Calcola Danno" risolve entrambe le azioni alleate in ordine di Velocita' (come in una
+ * lotta doppia reale), applica le mosse che alzano le statistiche (tabella curata in
+ * shared-data.js) e mostra un riepilogo di turno con barra HP animata per ogni avversario
+ * colpito. Riusa i dati condivisi (shared-data.js) e la stessa matematica/effetti oggetto del
+ * calcolo 1vs1 (window.CalcDanniEngine) - qui c'e' solo l'interfaccia e la logica di turno.
  */
 
 (function () {
@@ -16,6 +19,7 @@
     'special-attack': 'Sp. Atk', 'special-defense': 'Sp. Def', 'speed': 'Velocità'
   };
   const STAT_KEYS = ['hp', 'attack', 'defense', 'special-attack', 'special-defense', 'speed'];
+  const STAGE_STAT_KEYS = ['attack', 'defense', 'special-attack', 'special-defense', 'speed'];
 
   const SLOT_META = {
     ally1: { label: 'Alleato 1', side: 'ally', color: 'var(--accent)' },
@@ -25,8 +29,6 @@
   };
 
   let slots = { ally1: null, ally2: null, opp1: null, opp2: null };
-  let attackerKey = '';
-  let targetKey = '';
   let pickerTargetSlot = null;
   let selectedPickerTypes = [];
   let dexList = [];
@@ -35,12 +37,37 @@
   function emptyEvs() {
     return { hp: 0, attack: 0, defense: 0, 'special-attack': 0, 'special-defense': 0, speed: 0 };
   }
+  function emptyStages() {
+    return { attack: 0, defense: 0, 'special-attack': 0, 'special-defense': 0, speed: 0 };
+  }
+  function clampStage(v) {
+    return Math.max(-6, Math.min(6, v));
+  }
+  function otherAllyKey(key) {
+    return key === 'ally1' ? 'ally2' : 'ally1';
+  }
+  function clampPct(v) {
+    return Math.max(0, Math.min(100, v));
+  }
+  function colorForPercent(p) {
+    return p <= 20 ? '#ef4444' : (p <= 50 ? '#f97316' : '#84cc16');
+  }
 
-  function statTotal(slot, statKey) {
+  // Statistica finale: base + offset + EV, poi Natura (window.SharedData.computeStatTotal),
+  // poi moltiplicatore di fase (mai su PS).
+  function baseStatTotal(slot, statKey) {
     const statObj = slot.stats.find(s => s.stat.name === statKey);
     const base = statObj ? statObj.base_stat : 1;
-    const offset = statKey === 'hp' ? 75 : 20;
-    return base + offset + (slot.evs[statKey] || 0);
+    return window.SharedData.computeStatTotal(base, slot.evs[statKey] || 0, statKey, slot.nature);
+  }
+  function stageMultiplier(stage) {
+    return stage >= 0 ? (2 + stage) / 2 : 2 / (2 - stage);
+  }
+  function effectiveStat(slot, statKey) {
+    const raw = baseStatTotal(slot, statKey);
+    if (statKey === 'hp') return raw;
+    const stage = (slot.statStages && slot.statStages[statKey]) || 0;
+    return Math.floor(raw * stageMultiplier(stage));
   }
 
   // ===============================
@@ -52,7 +79,7 @@
     initialized = true;
 
     container.innerHTML = `
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-bottom: 24px;">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 24px;">
         <div id="slot-card-ally1"></div>
         <div id="slot-card-ally2"></div>
         <div id="slot-card-opp1"></div>
@@ -61,21 +88,9 @@
 
       <div style="background-image: var(--glass-sheen); background-color: rgba(18,24,36,0.45); backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); box-shadow: 0 8px 24px rgba(0,0,0,0.3), inset 0 1px 0 var(--glass-highlight); border: 1px solid rgba(255,255,255,0.08); border-radius: var(--radius-lg); padding: 20px; margin-bottom: 24px;">
         <h3 style="color: #fff; margin-bottom: 14px; text-align: center;">Calcola Danno</h3>
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 14px;">
-          <label style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700;">Chi attacca
-            <select id="dv-attacker-select" onchange="window.Calc2v2.onAttackerChange(this.value)" style="width:100%; margin-top:4px; background:var(--panel-bg); border:1px solid var(--border-color); color:#fff; padding:8px; border-radius:6px;">
-              <option value="">— scegli —</option>
-            </select>
-          </label>
-          <label style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700;">Con quale mossa
-            <select id="dv-move-select" style="width:100%; margin-top:4px; background:var(--panel-bg); border:1px solid var(--border-color); color:#fff; padding:8px; border-radius:6px;">
-              <option value="">— scegli prima l'attaccante —</option>
-            </select>
-          </label>
-          <label style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700;">Chi è il bersaglio
-            <select id="dv-target-select" onchange="window.Calc2v2.onTargetChange(this.value)" style="width:100%; margin-top:4px; background:var(--panel-bg); border:1px solid var(--border-color); color:#fff; padding:8px; border-radius:6px;">
-              <option value="">— scegli prima l'attaccante —</option>
-            </select>
+        <div style="display:flex; justify-content:center; margin-bottom:14px;">
+          <label style="font-size:0.75rem; color:var(--text-muted); display:flex; align-items:center; gap:6px; cursor:pointer;">
+            <input type="checkbox" id="dv-tailwind-ally"> 💨 Ventoincoda attivo lato Alleati (raddoppia la Velocità)
           </label>
         </div>
         <button id="dv-calculate-btn" onclick="window.Calc2v2.calculate()" style="width: 100%; padding: 12px; background: linear-gradient(135deg, var(--accent), #0284c7); border: none; border-radius: 8px; color: #04202e; font-weight: 800; font-size: 1rem; cursor: pointer;">⚡ CALCOLA DANNO</button>
@@ -109,11 +124,99 @@
   // ===============================
   // Card di uno slot
   // ===============================
+  function buildItemOptionsHtml(selectedSlug) {
+    const groups = { damage: [], defense: [], utility: [], other: [] };
+    window.SharedData.ITEM_SLUGS.forEach(s => {
+      const cat = window.SharedData.getItemCategory(s);
+      (groups[cat] || groups.other).push(s);
+    });
+    const labels = window.SharedData.ITEM_CATEGORY_LABELS;
+    return ['damage', 'defense', 'utility', 'other'].map(cat => {
+      if (!groups[cat].length) return '';
+      const opts = groups[cat].map(s =>
+        `<option value="${s}" ${s === selectedSlug ? 'selected' : ''}>${window.SharedData.getItemName(s)}</option>`
+      ).join('');
+      return `<optgroup label="${labels[cat]}">${opts}</optgroup>`;
+    }).join('');
+  }
+
+  function buildNatureOptionsHtml(selectedNature) {
+    return Object.keys(window.SharedData.NATURES).map(n =>
+      `<option value="${n}" ${n === selectedNature ? 'selected' : ''}>${n}</option>`
+    ).join('');
+  }
+
+  function buildMoveOptionsHtml(slot) {
+    const moves = window.SharedData.getPokemonMoves(slot.name);
+    if (!moves.length) return `<option value="">Nessuna mossa nel DB</option>`;
+    return `<option value="">— scegli mossa —</option>` + moves.map(m =>
+      `<option value="${m.name}" ${m.name === slot.selectedMove ? 'selected' : ''}>[${m.type}] ${m.name} (${m.category})</option>`
+    ).join('');
+  }
+
+  function moveCategoryOf(move) {
+    return move.category === 'Fisico' ? 'physical' : (move.category === 'Speciale' ? 'special' : 'status');
+  }
+
+  function buildTargetBlockHtml(key, slot) {
+    if (!slot.selectedMove) {
+      return `<div style="font-size:0.68rem; color:var(--text-muted); margin-bottom:10px;">Scegli prima una mossa</div>`;
+    }
+    const moves = window.SharedData.getPokemonMoves(slot.name);
+    const move = moves.find(m => m.name === slot.selectedMove);
+    if (!move) return '';
+    if (moveCategoryOf(move) === 'status') {
+      return `<div style="font-size:0.68rem; color:var(--violet); margin-bottom:10px;">🛡️ Mossa di supporto — nessun bersaglio avversario necessario</div>`;
+    }
+    const moveTargetCategory = window.SharedData.getMoveTarget(slot.selectedMove);
+    const isSpread = moveTargetCategory === 'all-opponents' || moveTargetCategory === 'all-other-pokemon' || moveTargetCategory === 'all-pokemon';
+    if (isSpread) {
+      return `<div style="font-size:0.68rem; color:#38bdf8; margin-bottom:10px;">🌀 Colpisce entrambi gli avversari</div>`;
+    }
+    const oppKeys = ['opp1', 'opp2'].filter(k => slots[k]);
+    const optsHtml = oppKeys.length
+      ? `<option value="">— scegli bersaglio —</option>` + oppKeys.map(k =>
+          `<option value="${k}" ${k === slot.selectedTarget ? 'selected' : ''}>${SLOT_META[k].label}: ${slots[k].name}</option>`
+        ).join('')
+      : `<option value="">Nessun avversario disponibile</option>`;
+    return `
+      <label style="font-size:0.68rem; color:var(--text-muted); font-weight:700; display:block; margin-bottom:10px;">Bersaglio
+        <select onchange="window.Calc2v2.onSlotTargetChange('${key}', this.value)" style="width:100%; margin-top:4px; background:var(--bg-dark); border:1px solid var(--border-color); color:#fff; padding:6px; border-radius:6px; font-size:0.72rem;">
+          ${optsHtml}
+        </select>
+      </label>
+    `;
+  }
+
+  function buildStageAdjustorHtml(key, slot) {
+    const rows = STAGE_STAT_KEYS.map(k => {
+      const v = slot.statStages[k] || 0;
+      const color = v > 0 ? 'var(--lime)' : (v < 0 ? '#ef4444' : 'var(--text-muted)');
+      return `
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:4px; font-size:0.65rem;">
+          <span style="color:var(--text-muted);">${STAT_NAMES_ITA[k]}</span>
+          <div style="display:flex; align-items:center; gap:4px;">
+            <button type="button" onclick="window.Calc2v2.adjustStage('${key}', '${k}', -1)" style="width:18px; height:18px; line-height:16px; padding:0; background:var(--bg-dark); border:1px solid var(--border-color); color:#fff; border-radius:4px; cursor:pointer; font-size:0.7rem;">-</button>
+            <span style="width:24px; text-align:center; font-weight:800; color:${color};">${v > 0 ? '+' + v : v}</span>
+            <button type="button" onclick="window.Calc2v2.adjustStage('${key}', '${k}', 1)" style="width:18px; height:18px; line-height:16px; padding:0; background:var(--bg-dark); border:1px solid var(--border-color); color:#fff; border-radius:4px; cursor:pointer; font-size:0.7rem;">+</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+    return `
+      <div style="margin-bottom:10px;">
+        <div style="font-size:0.62rem; font-weight:800; color:var(--text-muted); margin-bottom:4px; letter-spacing:0.4px;">FASI STATISTICHE</div>
+        <div style="display:flex; flex-direction:column; gap:2px;">${rows}</div>
+      </div>
+    `;
+  }
+
   function renderSlotCard(key) {
     const el = document.getElementById(`slot-card-${key}`);
     if (!el) return;
     const meta = SLOT_META[key];
     const slot = slots[key];
+    const isAlly = meta.side === 'ally';
 
     if (!slot) {
       el.innerHTML = `
@@ -127,13 +230,10 @@
     }
 
     const typesHtml = slot.types.map(t => `<span style="background: var(--border-color); padding: 2px 6px; border-radius: 4px; font-size: 0.65rem; margin-right: 4px;">${(TYPE_NAMES_ITA[t] || t).toUpperCase()}</span>`).join('');
-    const itemOptionsHtml = window.SharedData.ITEM_SLUGS.map(s =>
-      `<option value="${s}" ${s === slot.item ? 'selected' : ''}>${window.SharedData.getItemName(s)}</option>`
-    ).join('');
     const evRowsHtml = STAT_KEYS.map(k => `
       <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; font-size:0.68rem;">
         <span style="color:var(--text-muted);">${STAT_NAMES_ITA[k]}</span>
-        <span style="font-weight:700;">${statTotal(slot, k)}</span>
+        <span style="font-weight:700;">${effectiveStat(slot, k)}</span>
         <input type="number" min="0" max="32" value="${slot.evs[k]}" onchange="window.Calc2v2.updateEv('${key}', '${k}', this.value)" style="width:38px; background:var(--bg-dark); border:1px solid var(--border-color); color:#fff; text-align:center; border-radius:4px; padding:2px; font-size:0.68rem;">
       </div>
     `).join('');
@@ -155,10 +255,24 @@
             placeholder="🔍 Cerca un oggetto..."
             style="width:100%; background:var(--bg-dark); color:white; border:1px solid var(--border-color); padding:6px; border-radius:6px; font-size:0.72rem; margin-bottom:6px;">
         <div id="item-search-results-${key}" style="display:none; max-height:160px; overflow-y:auto; margin-bottom:8px; background:var(--bg-dark); border:1px solid var(--border-color); border-radius:6px;"></div>
-        <select id="select-item-${key}" onchange="window.Calc2v2.updateItem('${key}', this.value)" style="width:100%; margin-bottom:10px; background:var(--bg-dark); border:1px solid var(--border-color); color:var(--violet); padding:6px; border-radius:6px; font-size:0.75rem;">
+        <select id="select-item-${key}" onchange="window.Calc2v2.updateItem('${key}', this.value)" style="width:100%; margin-bottom:8px; background:var(--bg-dark); border:1px solid var(--border-color); color:var(--violet); padding:6px; border-radius:6px; font-size:0.75rem;">
           <option value="">— Nessun oggetto —</option>
-          ${itemOptionsHtml}
+          ${buildItemOptionsHtml(slot.item)}
         </select>
+        <label style="font-size:0.62rem; color:var(--text-muted); font-weight:700; display:block; margin-bottom:8px;">Natura
+          <select onchange="window.Calc2v2.updateNature('${key}', this.value)" style="width:100%; margin-top:4px; background:var(--bg-dark); border:1px solid var(--border-color); color:#fff; padding:6px; border-radius:6px; font-size:0.72rem;">
+            ${buildNatureOptionsHtml(slot.nature)}
+          </select>
+        </label>
+        ${isAlly ? `
+        <label style="font-size:0.62rem; color:var(--text-muted); font-weight:700; display:block; margin-bottom:8px;">Mossa
+          <select onchange="window.Calc2v2.onSlotMoveChange('${key}', this.value)" style="width:100%; margin-top:4px; background:var(--bg-dark); border:1px solid var(--border-color); color:#fff; padding:6px; border-radius:6px; font-size:0.72rem;">
+            ${buildMoveOptionsHtml(slot)}
+          </select>
+        </label>
+        ${buildTargetBlockHtml(key, slot)}
+        ` : ''}
+        ${buildStageAdjustorHtml(key, slot)}
         <div style="display:flex; flex-direction:column; gap:3px;">${evRowsHtml}</div>
       </div>
     `;
@@ -185,8 +299,9 @@
 
       found.forEach(slug => {
         const name = window.SharedData.getItemName(slug);
+        const catLabel = window.SharedData.ITEM_CATEGORY_LABELS[window.SharedData.getItemCategory(slug)];
         const item = document.createElement('div');
-        item.textContent = name;
+        item.innerHTML = `${name} <span style="float:right; font-size:0.6rem; color:var(--text-muted);">${catLabel}</span>`;
         item.style.padding = '8px';
         item.style.cursor = 'pointer';
         item.style.borderBottom = '1px solid var(--border-color)';
@@ -276,24 +391,55 @@
         types: data.types.map(t => t.type.name),
         stats: data.stats,
         item: '',
-        evs: emptyEvs()
+        evs: emptyEvs(),
+        nature: 'Ardita',
+        statStages: emptyStages(),
+        selectedMove: '',
+        selectedTarget: '',
+        appliedBoost: null
       };
       renderSlotCard(key);
-      refreshAttackerOptions();
     } catch (e) {
       console.error('Errore assegnazione slot 2vs2:', e);
     }
   };
 
   window.Calc2v2.clearSlot = function (key) {
+    const slot = slots[key];
+    if (slot && slot.appliedBoost) {
+      const t = slots[slot.appliedBoost.targetKey];
+      if (t) {
+        slot.appliedBoost.changes.forEach(c => {
+          t.statStages[c.stat] = clampStage(t.statStages[c.stat] - c.stages);
+        });
+      }
+    }
+    // Se un'altra mossa alleata aveva applicato un boost proprio su questo slot, la voce
+    // diventa non piu' valida insieme allo slot: la annulliamo per evitare riferimenti stantii.
+    Object.keys(slots).forEach(k => {
+      if (slots[k] && slots[k].appliedBoost && slots[k].appliedBoost.targetKey === key) {
+        slots[k].appliedBoost = null;
+      }
+    });
     slots[key] = null;
-    if (attackerKey === key) { attackerKey = ''; targetKey = ''; }
     renderSlotCard(key);
-    refreshAttackerOptions();
+    if (SLOT_META[key].side === 'ally') renderSlotCard(otherAllyKey(key));
   };
 
   window.Calc2v2.updateItem = function (key, slug) {
     if (slots[key]) slots[key].item = slug;
+  };
+
+  window.Calc2v2.updateNature = function (key, natureKey) {
+    if (!slots[key]) return;
+    slots[key].nature = natureKey;
+    renderSlotCard(key);
+  };
+
+  window.Calc2v2.adjustStage = function (key, statKey, delta) {
+    if (!slots[key]) return;
+    slots[key].statStages[statKey] = clampStage((slots[key].statStages[statKey] || 0) + delta);
+    renderSlotCard(key);
   };
 
   window.Calc2v2.updateEv = function (key, statKey, value) {
@@ -307,79 +453,69 @@
   };
 
   // ===============================
-  // Attaccante / mossa / bersaglio
+  // Mossa / bersaglio per box alleato
   // ===============================
-  function refreshAttackerOptions() {
-    const select = document.getElementById('dv-attacker-select');
-    if (!select) return;
-    const filledKeys = Object.keys(slots).filter(k => slots[k]);
-    select.innerHTML = `<option value="">— scegli —</option>` + filledKeys.map(k =>
-      `<option value="${k}" ${k === attackerKey ? 'selected' : ''}>${SLOT_META[k].label}: ${slots[k].name}</option>`
-    ).join('');
-    if (attackerKey && !filledKeys.includes(attackerKey)) attackerKey = '';
-    window.Calc2v2.onAttackerChange(attackerKey);
-  }
+  window.Calc2v2.onSlotMoveChange = function (key, moveName) {
+    const slot = slots[key];
+    if (!slot) return;
 
-  window.Calc2v2.onAttackerChange = function (key) {
-    attackerKey = key;
-    const moveSelect = document.getElementById('dv-move-select');
-    const targetSelect = document.getElementById('dv-target-select');
-    if (!moveSelect || !targetSelect) return;
-
-    if (!key || !slots[key]) {
-      moveSelect.innerHTML = `<option value="">— scegli prima l'attaccante —</option>`;
-      targetSelect.innerHTML = `<option value="">— scegli prima l'attaccante —</option>`;
-      targetKey = '';
-      return;
+    // Annulla l'eventuale boost applicato dalla mossa selezionata in precedenza in questo box,
+    // cosi' cambiare mossa (o tornare alla stessa) non accumula bonus non voluti.
+    const prevTargetKey = slot.appliedBoost ? slot.appliedBoost.targetKey : null;
+    if (slot.appliedBoost) {
+      const prevTarget = slots[prevTargetKey];
+      if (prevTarget) {
+        slot.appliedBoost.changes.forEach(c => {
+          prevTarget.statStages[c.stat] = clampStage(prevTarget.statStages[c.stat] - c.stages);
+        });
+      }
+      slot.appliedBoost = null;
     }
 
-    const moves = window.SharedData.getPokemonMoves(slots[key].name);
-    moveSelect.innerHTML = moves.length
-      ? moves.map(m => `<option value="${m.name}">[${m.type}] ${m.name}</option>`).join('')
-      : `<option value="">Nessuna mossa trovata nel DB</option>`;
+    slot.selectedMove = moveName;
+    slot.selectedTarget = '';
 
-    const opposingSide = SLOT_META[key].side === 'ally' ? 'opp' : 'ally';
-    const opposingKeys = Object.keys(SLOT_META).filter(k => SLOT_META[k].side === opposingSide && slots[k]);
-    targetSelect.innerHTML = opposingKeys.length
-      ? `<option value="">— scegli —</option>` + opposingKeys.map(k => `<option value="${k}">${SLOT_META[k].label}: ${slots[k].name}</option>`).join('')
-      : `<option value="">Nessun avversario disponibile</option>`;
-    targetKey = '';
+    const boost = window.SharedData.STAT_BOOST_MOVES[moveName];
+    let boostTargetKey = null;
+    if (boost) {
+      boostTargetKey = boost.target === 'ally' ? otherAllyKey(key) : key;
+      if (slots[boostTargetKey]) {
+        boost.changes.forEach(c => {
+          slots[boostTargetKey].statStages[c.stat] = clampStage(slots[boostTargetKey].statStages[c.stat] + c.stages);
+        });
+        slot.appliedBoost = { targetKey: boostTargetKey, changes: boost.changes };
+      }
+    }
+
+    renderSlotCard(key);
+    // Ri-renderizza qualunque altro box i cui dati sono cambiati: il nuovo bersaglio del boost
+    // e/o il bersaglio del boost precedente appena annullato (potrebbero essere lo stesso box,
+    // uno dei due, o nessuno - un Set evita di renderizzare due volte lo stesso box).
+    const keysToRefresh = new Set();
+    if (boostTargetKey && boostTargetKey !== key) keysToRefresh.add(boostTargetKey);
+    if (prevTargetKey && prevTargetKey !== key) keysToRefresh.add(prevTargetKey);
+    keysToRefresh.forEach(k => { if (slots[k]) renderSlotCard(k); });
   };
 
-  window.Calc2v2.onTargetChange = function (key) { targetKey = key; };
+  window.Calc2v2.onSlotTargetChange = function (key, targetValue) {
+    if (slots[key]) slots[key].selectedTarget = targetValue;
+  };
 
   // ===============================
-  // Calcolo
+  // Calcolo di un singolo colpo (riusa window.CalcDanniEngine, come nella versione precedente)
   // ===============================
-  window.Calc2v2.calculate = function () {
-    const moveSelect = document.getElementById('dv-move-select');
-    const moveName = moveSelect ? moveSelect.value : '';
-
-    if (!attackerKey || !slots[attackerKey]) { alert('Scegli chi attacca!'); return; }
-    if (!targetKey || !slots[targetKey]) { alert('Scegli il bersaglio!'); return; }
-    if (!moveName) { alert('Scegli una mossa!'); return; }
-
-    const attacker = slots[attackerKey];
-    const defender = slots[targetKey];
-    const moves = window.SharedData.getPokemonMoves(attacker.name);
-    const move = moves.find(m => m.name === moveName);
-    if (!move) { alert('Mossa non trovata.'); return; }
-
+  function computeSingleHit(action, oppKey, spreadMult, category) {
+    const attacker = action.slot;
+    const defender = slots[oppKey];
     const engine = window.CalcDanniEngine;
-    const category = move.category === 'Fisico' ? 'physical' : (move.category === 'Speciale' ? 'special' : 'status');
-    const moveType = engine.TYPE_ITA_TO_ENG[(move.type || '').toLowerCase()] || 'normal';
-    const movePower = parseInt(move.power, 10) || 0;
-
-    if (category === 'status') {
-      alert('Questa è una mossa di stato: non infligge danno diretto.');
-      return;
-    }
+    const moveType = engine.TYPE_ITA_TO_ENG[(action.move.type || '').toLowerCase()] || 'normal';
+    const movePower = parseInt(action.move.power, 10) || 0;
 
     const statOffKey = category === 'physical' ? 'attack' : 'special-attack';
     const statDefKey = category === 'physical' ? 'defense' : 'special-defense';
-    const baseAttackStat = statTotal(attacker, statOffKey);
-    const baseDefenseStat = statTotal(defender, statDefKey);
-    const hpDefender = statTotal(defender, 'hp');
+    const baseAttackStat = effectiveStat(attacker, statOffKey);
+    const baseDefenseStat = effectiveStat(defender, statDefKey);
+    const hpDefender = effectiveStat(defender, 'hp');
 
     const typeChart = window.SharedData.TYPE_CHART_BY_ATTACKER;
     let typeMultiplier = 1;
@@ -399,21 +535,6 @@
     });
     const itemLabels = [...offense.labels, ...defense.labels];
 
-    // Regola del doppio: le mosse ad area infliggono x0.75 quando colpiscono piu' di un
-    // bersaglio in totale. "all-opponents" colpisce solo gli avversari; "all-other-pokemon"
-    // colpisce chiunque tranne l'attaccante, quindi conta anche il proprio alleato.
-    const moveTargetCategory = window.SharedData.getMoveTarget(moveName);
-    const isSpread = moveTargetCategory === 'all-opponents' || moveTargetCategory === 'all-other-pokemon';
-    let hitCount = 0;
-    if (isSpread) {
-      const opposingSide = SLOT_META[attackerKey].side === 'ally' ? 'opp' : 'ally';
-      const relevantKeys = moveTargetCategory === 'all-other-pokemon'
-        ? Object.keys(SLOT_META).filter(k => k !== attackerKey)
-        : Object.keys(SLOT_META).filter(k => SLOT_META[k].side === opposingSide);
-      hitCount = relevantKeys.filter(k => slots[k]).length;
-    }
-    const spreadMult = (isSpread && hitCount > 1) ? 0.75 : 1;
-
     const maxDamage = engine.computeDamage({
       level: 50, movePower, attackStat: offense.stat, defenseStat: defense.stat,
       isStab, typeMultiplier, extraDamageMult: offense.damageMult, spreadMult
@@ -425,55 +546,192 @@
     const isPossibleKO = maxDamage >= hpDefender;
     const hitsToKO = Math.max(1, Math.ceil(hpDefender / Math.max(1, maxDamage)));
 
-    let statusText = '';
-    if (isGuaranteedKO) statusText = `<span style="color:#ef4444; font-weight:800;">KO GARANTITO IN 1 COLPO (${maxPercent}%)</span>`;
-    else if (isPossibleKO) statusText = `<span style="color:#f59e0b; font-weight:800;">POSSIBILE KO IN 1 COLPO (${minPercent}% - ${maxPercent}%)</span>`;
-    else statusText = `<span style="color:#84cc16; font-weight:800;">NON MANDA KO (KO in ${hitsToKO} colpi)</span>`;
-
     let effectivenessText = 'Effetto normale (x1)';
     if (typeMultiplier === 0) effectivenessText = 'Nessun effetto (x0)';
     else if (typeMultiplier >= 2) effectivenessText = `Super Efficace (x${typeMultiplier})`;
     else if (typeMultiplier < 1) effectivenessText = `Poco Efficace (x${typeMultiplier})`;
 
-    showResultModal({
-      title: `${attacker.name} (${SLOT_META[attackerKey].label}) ➔ ${defender.name} (${SLOT_META[targetKey].label})`,
-      statusText,
-      moveName,
-      category: move.category,
+    return {
+      targetKey: oppKey, targetName: defender.name,
       minDamage, maxDamage, hpDefender, minPercent, maxPercent,
-      effectivenessText,
-      isStab,
-      itemLabels,
-      isSpread,
-      spreadApplied: spreadMult < 1
+      isGuaranteedKO, isPossibleKO, hitsToKO,
+      effectivenessText, isStab, itemLabels
+    };
+  }
+
+  // ===============================
+  // Risoluzione del turno
+  // ===============================
+  window.Calc2v2.calculate = function () {
+    const tailwindAlly = document.getElementById('dv-tailwind-ally')?.checked || false;
+
+    const actions = ['ally1', 'ally2']
+      .filter(key => slots[key] && slots[key].selectedMove)
+      .map(key => {
+        const slot = slots[key];
+        const move = window.SharedData.getPokemonMoves(slot.name).find(m => m.name === slot.selectedMove);
+        if (!move) return null;
+        const effSpeed = effectiveStat(slot, 'speed') * (tailwindAlly ? 2 : 1);
+        return { key, slot, move, effSpeed };
+      })
+      .filter(Boolean);
+
+    if (!actions.length) { alert('Scegli almeno una mossa per un alleato!'); return; }
+
+    actions.sort((a, b) => b.effSpeed - a.effSpeed);
+
+    const remainingHp = {};
+    ['opp1', 'opp2'].forEach(k => { if (slots[k]) remainingHp[k] = effectiveStat(slots[k], 'hp'); });
+
+    const log = [];
+
+    actions.forEach(action => {
+      const category = moveCategoryOf(action.move);
+
+      if (category === 'status') {
+        const boost = window.SharedData.STAT_BOOST_MOVES[action.move.name];
+        if (boost) {
+          const targetKey = boost.target === 'ally' ? otherAllyKey(action.key) : action.key;
+          log.push({
+            type: 'boost', attackerKey: action.key, moveName: action.move.name,
+            targetKey: slots[targetKey] ? targetKey : null, changes: boost.changes
+          });
+        } else {
+          log.push({ type: 'status-generic', attackerKey: action.key, moveName: action.move.name });
+        }
+        return;
+      }
+
+      // Mossa offensiva: determina bersagli. Riusa la regola gia' corretta per il moltiplicatore
+      // x0.75 (conta tutti i bersagli colpiti tranne l'attaccante, non solo il lato opposto).
+      const moveTargetCategory = window.SharedData.getMoveTarget(action.move.name);
+      const isSpread = moveTargetCategory === 'all-opponents' || moveTargetCategory === 'all-other-pokemon' || moveTargetCategory === 'all-pokemon';
+      const targetKeys = isSpread
+        ? ['opp1', 'opp2'].filter(k => slots[k])
+        : [action.slot.selectedTarget].filter(k => k && slots[k]);
+
+      if (!targetKeys.length) {
+        log.push({ type: 'no-target', attackerKey: action.key, moveName: action.move.name });
+        return;
+      }
+
+      const hitCountForSpread = isSpread
+        ? Object.keys(SLOT_META).filter(k => k !== action.key && slots[k]).length
+        : 1;
+      const spreadMult = (isSpread && hitCountForSpread > 1) ? 0.75 : 1;
+
+      const hits = targetKeys.map(oppKey => {
+        const hit = computeSingleHit(action, oppKey, spreadMult, category);
+        hit.hpBeforePct = (remainingHp[oppKey] / hit.hpDefender) * 100;
+        remainingHp[oppKey] = Math.max(0, remainingHp[oppKey] - hit.maxDamage);
+        hit.hpAfterPct = (remainingHp[oppKey] / hit.hpDefender) * 100;
+        return hit;
+      });
+
+      log.push({
+        type: 'damage', attackerKey: action.key, moveName: action.move.name,
+        isSpread, spreadApplied: spreadMult < 1, hits
+      });
     });
+
+    renderTurnSummary(log, actions, tailwindAlly);
   };
 
-  function showResultModal(data) {
-    const overlay = document.createElement('div');
-    overlay.style.cssText = 'position:fixed; inset:0; background:rgba(5,8,15,0.7); backdrop-filter: blur(6px); display:flex; align-items:center; justify-content:center; z-index:9999;';
-    overlay.innerHTML = `
-      <div style="background-image: var(--glass-sheen); background-color: rgba(18,24,36,0.6); backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); border: 1px solid rgba(56,189,248,0.4); border-radius: var(--radius-lg); padding: 24px; max-width: 520px; width: 90%; color: #fff;">
-        <h2 style="font-size:1.2rem; color: var(--accent); margin-bottom:8px; text-align:center;">${data.title}</h2>
-        <div style="font-size:1rem; text-align:center; margin-bottom:12px; padding:10px; background:var(--bg-dark); border-radius:8px;">${data.statusText}</div>
-        ${data.isSpread ? `<div style="font-size:0.8rem; text-align:center; margin-bottom:12px; padding:8px; background:var(--bg-dark); border-radius:8px; border:1px solid ${data.spreadApplied ? '#38bdf8' : 'var(--border-color)'}; color:${data.spreadApplied ? '#38bdf8' : 'var(--text-muted)'};">
-          ${data.spreadApplied ? '🌀 Mossa ad area: colpisce più bersagli, danno ×0.75' : 'Mossa ad area, ma il secondo bersaglio non è presente: nessuna riduzione applicata'}
-        </div>` : ''}
-        <div style="font-size:0.85rem; line-height:1.6; color:#cbd5e1; background:var(--bg-dark); padding:12px; border-radius:8px; border:1px solid var(--border-color);">
-          <ul style="padding-left:18px; margin:0;">
-            <li>Mossa: <b>${data.moveName}</b> (${data.category})</li>
-            <li>Danno Totale: <b>${data.minDamage} - ${data.maxDamage} HP</b> (${data.minPercent}% - ${data.maxPercent}%) su ${data.hpDefender} HP</li>
-            <li>Efficacia Tipo: <b>${data.effectivenessText}</b></li>
-            <li>Bonus STAB: <b>${data.isStab ? 'Sì (x1.5)' : 'No'}</b></li>
-            ${data.itemLabels.length ? `<li>Oggetti: <b>${data.itemLabels.join(' · ')}</b></li>` : ''}
-          </ul>
+  // ===============================
+  // Riepilogo turno + barra HP animata
+  // ===============================
+  function renderTurnSummary(log, actions, tailwindAlly) {
+    const orderText = actions.map((a, i) =>
+      `${i + 1}. ${SLOT_META[a.key].label} (${a.slot.name}) — Vel. ${Math.round(a.effSpeed)}`
+    ).join(' → ');
+
+    const barAnimations = [];
+
+    const blocksHtml = log.map(entry => {
+      if (entry.type === 'boost') {
+        const changesText = entry.changes.map(c => `${STAT_NAMES_ITA[c.stat]} ${c.stages > 0 ? '+' : ''}${c.stages}`).join(', ');
+        const targetLabel = entry.targetKey ? SLOT_META[entry.targetKey].label : '(nessun bersaglio disponibile)';
+        return `
+          <div style="padding:10px; background:var(--bg-dark); border-radius:8px; border:1px solid var(--border-color); margin-bottom:10px; font-size:0.8rem;">
+            🔧 <b>${SLOT_META[entry.attackerKey].label}</b> usa <b>${entry.moveName}</b> → ${targetLabel}: ${changesText}
+          </div>
+        `;
+      }
+      if (entry.type === 'status-generic') {
+        return `
+          <div style="padding:10px; background:var(--bg-dark); border-radius:8px; border:1px solid var(--border-color); margin-bottom:10px; font-size:0.8rem; color:var(--text-muted);">
+            ${SLOT_META[entry.attackerKey].label} usa <b>${entry.moveName}</b>: nessun effetto modellato in questo calcolatore
+          </div>
+        `;
+      }
+      if (entry.type === 'no-target') {
+        return `
+          <div style="padding:10px; background:var(--bg-dark); border-radius:8px; border:1px solid #f59e0b; margin-bottom:10px; font-size:0.8rem; color:#f59e0b;">
+            ${SLOT_META[entry.attackerKey].label} usa <b>${entry.moveName}</b>: nessun bersaglio scelto/disponibile
+          </div>
+        `;
+      }
+
+      // type === 'damage'
+      const hitsHtml = entry.hits.map(hit => {
+        let statusText = '';
+        if (hit.isGuaranteedKO) statusText = `<span style="color:#ef4444; font-weight:800;">KO GARANTITO (${hit.maxPercent}%)</span>`;
+        else if (hit.isPossibleKO) statusText = `<span style="color:#f59e0b; font-weight:800;">POSSIBILE KO (${hit.minPercent}% - ${hit.maxPercent}%)</span>`;
+        else statusText = `<span style="color:#84cc16; font-weight:800;">NON MANDA KO (KO in ${hit.hitsToKO} colpi)</span>`;
+
+        const barId = `hpbar-${Math.random().toString(36).slice(2, 10)}`;
+        const beforeW = clampPct(hit.hpBeforePct);
+        const afterW = clampPct(hit.hpAfterPct);
+        barAnimations.push({ barId, afterW, color: colorForPercent(afterW) });
+
+        return `
+          <div style="margin-bottom:10px; padding:8px; background:var(--panel-bg); border-radius:6px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.75rem; margin-bottom:4px; gap:8px;">
+              <span>${hit.targetName} (${SLOT_META[hit.targetKey].label})</span>
+              <span>${statusText}</span>
+            </div>
+            <div style="height:8px; border-radius:4px; background:rgba(255,255,255,0.08); overflow:hidden;">
+              <div id="${barId}" style="height:100%; width:${beforeW}%; background:${colorForPercent(beforeW)}; transition: width 0.6s ease, background-color 0.6s ease; border-radius:4px;"></div>
+            </div>
+            <div style="font-size:0.7rem; color:var(--text-muted); margin-top:4px;">
+              Danno: ${hit.minDamage}-${hit.maxDamage} HP (${hit.minPercent}%-${hit.maxPercent}%) · ${hit.effectivenessText} · STAB: ${hit.isStab ? 'Sì' : 'No'}${hit.itemLabels.length ? ' · ' + hit.itemLabels.join(' · ') : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      return `
+        <div style="margin-bottom:14px;">
+          <div style="font-size:0.85rem; font-weight:800; color:var(--accent); margin-bottom:6px;">${SLOT_META[entry.attackerKey].label} usa ${entry.moveName}${entry.isSpread ? (entry.spreadApplied ? ' 🌀 (×0.75, area)' : ' 🌀 (area)') : ''}</div>
+          ${hitsHtml}
         </div>
-        <button id="dv2v2-close-modal" style="width:100%; margin-top:14px; padding:10px; background:var(--border-color); border:none; color:#fff; font-weight:700; border-radius:8px; cursor:pointer;">CHIUDI</button>
+      `;
+    }).join('');
+
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed; inset:0; background:rgba(5,8,15,0.7); backdrop-filter: blur(6px); display:flex; align-items:center; justify-content:center; z-index:9999; padding:16px;';
+    overlay.innerHTML = `
+      <div style="background-image: var(--glass-sheen); background-color: rgba(18,24,36,0.6); backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); border: 1px solid rgba(56,189,248,0.4); border-radius: var(--radius-lg); padding: 24px; max-width: 560px; width: 100%; max-height: 85vh; overflow-y:auto; color: #fff;">
+        <h2 style="font-size:1.1rem; color: var(--accent); margin-bottom:10px; text-align:center;">Riepilogo Turno</h2>
+        <div style="font-size:0.75rem; text-align:center; margin-bottom:16px; padding:8px; background:var(--bg-dark); border-radius:8px; color:var(--text-muted);">Ordine: ${orderText}${tailwindAlly ? ' · Ventoincoda attivo (Alleati)' : ''}</div>
+        ${blocksHtml}
+        <button id="dv2v2-close-modal" style="width:100%; margin-top:6px; padding:10px; background:var(--border-color); border:none; color:#fff; font-weight:700; border-radius:8px; cursor:pointer;">CHIUDI</button>
       </div>
     `;
     document.body.appendChild(overlay);
     document.getElementById('dv2v2-close-modal').onclick = () => overlay.remove();
     overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+
+    // Applica la larghezza finale dopo un breve delay: la transition CSS anima lo svuotamento.
+    setTimeout(() => {
+      barAnimations.forEach(b => {
+        const bar = document.getElementById(b.barId);
+        if (bar) {
+          bar.style.width = b.afterW + '%';
+          bar.style.background = b.color;
+        }
+      });
+    }, 80);
   }
 
   document.addEventListener('DOMContentLoaded', () => {
