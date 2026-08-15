@@ -329,6 +329,25 @@
   const SPEED_BENCHMARK = 100;
   const OFFENSE_BENCHMARK = 100;
 
+  // Punti assegnati a ciascun segnale di sinergia, calibrati sull'impatto reale in una lotta
+  // in Doppio: un richiamo avversari che protegge un compagno fragile o un cambio di ordine
+  // di turno (Trick Room/Ventoincoda) di solito decidono la lotta piu' di una singola
+  // resistenza di tipo, quindi pesano di piu'.
+  const SCORE = {
+    weatherMoveBoost: 3,
+    terrainMoveBoost: 3,
+    terrainQualitative: 1,
+    redirectFragilePartner: 4,
+    redirectGeneric: 2,
+    teamProtect: 1,
+    trickRoom: 4,
+    tailwind: 3,
+    fakeOutGeneric: 1,
+    fakeOutEnablesSetup: 2,
+    typeSynergyResist: 1,
+    typeSynergyImmune: 2
+  };
+
   function movepoolFor(speciesName) {
     return (window.SharedData && window.SharedData.getPokemonMoves(speciesName)) || [];
   }
@@ -353,6 +372,7 @@
     if (hasMove('Distortozona')) tags.push('trickroom');
     if (hasMove('Ventoincoda')) tags.push('tailwind');
     if (hasMove('Bodyguard') || hasMove('Anticipo')) tags.push('team-protect');
+    if (hasMove('Fintoattacco')) tags.push('fake-out');
 
     return {
       slot,
@@ -376,11 +396,18 @@
     const covered = [];
     Object.keys(multA).forEach(t => {
       if (multA[t] > 1 && multB[t] < 1) {
-        score += multB[t] === 0 ? 2 : 1;
+        score += multB[t] === 0 ? SCORE.typeSynergyImmune : SCORE.typeSynergyResist;
         covered.push(TYPE_NAMES_ITA[t] || t);
       }
     });
     return { score, covered };
+  }
+
+  // Un compagno "ha bisogno" di un turno sicuro se deve piazzare un effetto di squadra
+  // (meteo/terreno/Trick Room/Ventoincoda) prima di essere davvero utile: Fintoattacco
+  // (priorita', fa saltare il turno al bersaglio) glielo puo' garantire.
+  function needsSafeSetupTurn(profile) {
+    return profile.tags.some(t => ['weather-setter', 'terrain-setter', 'trickroom', 'tailwind'].includes(t));
   }
 
   function scorePair(a, b, teamAvg) {
@@ -391,7 +418,7 @@
       const abilitySlug = a.slot.abilitySlug;
       const boostType = WEATHER_MOVE_BOOST[abilitySlug];
       if (boostType && b.attackingMoves.some(m => m.typeId === boostType)) {
-        score += 3;
+        score += SCORE.weatherMoveBoost;
         reasons.push(`${a.slot.abilityDisplayName} (${WEATHER_LABEL_IT[abilitySlug]}) potenzia le mosse di tipo ${TYPE_NAMES_ITA[boostType]} di ${b.slot.speciesName}.`);
       }
     }
@@ -399,31 +426,38 @@
       const abilitySlug = a.slot.abilitySlug;
       const boostType = TERRAIN_MOVE_BOOST[abilitySlug];
       if (boostType && b.attackingMoves.some(m => m.typeId === boostType)) {
-        score += 3;
+        score += SCORE.terrainMoveBoost;
         reasons.push(`${TERRAIN_LABEL_IT[abilitySlug]} (${a.slot.speciesName}) potenzia le mosse di tipo ${TYPE_NAMES_ITA[boostType]} di ${b.slot.speciesName}.`);
       }
       if (TERRAIN_QUALITATIVE_IT[abilitySlug]) {
-        score += 1;
+        score += SCORE.terrainQualitative;
         reasons.push(`${TERRAIN_LABEL_IT[abilitySlug]} (${a.slot.speciesName}) ${TERRAIN_QUALITATIVE_IT[abilitySlug]} — utile anche per ${b.slot.speciesName}.`);
       }
     }
     if (a.tags.includes('redirector')) {
       const moveName = a.hasMove('Sonoqui') ? 'Sonoqui' : 'Polverabbia';
       const fragile = b.bulk < teamAvg.bulk;
-      score += fragile ? 3 : 2;
+      score += fragile ? SCORE.redirectFragilePartner : SCORE.redirectGeneric;
       reasons.push(`${a.slot.speciesName} può attirare gli attacchi su di sé con ${moveName}${fragile ? ', proteggendo ' + b.slot.speciesName + ' (più fragile)' : ' mentre ' + b.slot.speciesName + ' attacca liberamente'}.`);
     }
     if (a.tags.includes('team-protect') && b.offense >= OFFENSE_BENCHMARK) {
-      score += 1;
+      score += SCORE.teamProtect;
       reasons.push(`${a.slot.speciesName} riduce i danni da mosse ad area/priorità su tutta la squadra, incluso ${b.slot.speciesName}.`);
     }
     if (a.tags.includes('trickroom') && b.speed < SPEED_BENCHMARK && b.offense >= OFFENSE_BENCHMARK) {
-      score += 3;
+      score += SCORE.trickRoom;
       reasons.push(`Distortozona (${a.slot.speciesName}) inverte l'ordine di turno: ${b.slot.speciesName} è lento ma potente, colpirebbe per primo.`);
     }
     if (a.tags.includes('tailwind') && b.offense >= OFFENSE_BENCHMARK) {
-      score += 2;
+      score += SCORE.tailwind;
       reasons.push(`Ventoincoda (${a.slot.speciesName}) raddoppia la Velocità della squadra per 4 turni: ${b.slot.speciesName} guadagna l'iniziativa.`);
+    }
+    if (a.tags.includes('fake-out')) {
+      const enables = needsSafeSetupTurn(b);
+      score += enables ? SCORE.fakeOutEnablesSetup : SCORE.fakeOutGeneric;
+      reasons.push(enables
+        ? `Fintoattacco (${a.slot.speciesName}) fa saltare il turno a un avversario: ${b.slot.speciesName} può piazzare il proprio effetto di squadra senza rischi.`
+        : `Fintoattacco (${a.slot.speciesName}) toglie un turno all'avversario, dando a ${b.slot.speciesName} un'apertura più sicura.`);
     }
 
     const { score: tScore, covered } = typeSynergyScore(a, b);
@@ -466,18 +500,18 @@
 
     if (role.startsWith('Supporto (Richiamo')) {
       add('Sonoqui'); add('Polverabbia');
-      add('Protezione');
-      add('Distortozona'); add('Ventoincoda');
     } else if (role.startsWith('Controllo Velocità (Trick Room')) {
       add('Distortozona');
-      add('Protezione');
     } else if (role.startsWith('Controllo Velocità (Ventoincoda')) {
       add('Ventoincoda');
-      add('Protezione');
     } else if (role.startsWith('Supporto (Protezione')) {
       add('Bodyguard'); add('Anticipo');
-      add('Protezione');
     }
+    // Fintoattacco (priorita', fa saltare il turno) e Protezione sono cardine di quasi ogni
+    // set da Doppio reale: li si propone sempre quando disponibili, non solo per i ruoli di
+    // supporto puro, cosi' un attaccante non finisce con 4 mosse offensive ridondanti.
+    if (profile.tags.includes('fake-out')) add('Fintoattacco');
+    add('Protezione');
 
     // Riempie gli slot restanti con le mosse offensive migliori. Prima la mossa piu' potente
     // per OGNI tipo posseduto (STAB): un Pokemon di doppio tipo prende sia la sua migliore
@@ -490,7 +524,6 @@
     });
     for (const m of profile.attackingMoves) { if (picked.length >= 4) break; add(m); }
 
-    if (picked.length < 4) add('Protezione');
     // Se il movepool e' minuscolo (es. Ditto, Metapod), restituisce solo cio' che esiste davvero.
     for (const m of profile.movepool) { if (picked.length >= 4) break; add(m); }
 
@@ -515,12 +548,17 @@
     };
 
     return profiles.map(a => {
-      let best = null;
-      profiles.forEach(b => {
-        if (b.index === a.index) return;
-        const { score, reasons } = scorePair(a, b, teamAvg);
-        if (!best || score > best.score) best = { partner: b, score, reasons };
-      });
+      // Valuta OGNI possibile compagno (non solo il migliore): con 3+ Pokemon in squadra,
+      // vedere anche la seconda scelta e perche' vale meno aiuta a decidere la formazione
+      // da 4 da portare in lotta, non solo "chi va con chi" in astratto.
+      const ranked = profiles
+        .filter(b => b.index !== a.index)
+        .map(b => {
+          const { score, reasons } = scorePair(a, b, teamAvg);
+          return { partner: b, score, reasons };
+        })
+        .sort((x, y) => y.score - x.score)
+        .slice(0, 2);
 
       const role = classifyRole(a);
       return {
@@ -528,8 +566,15 @@
         speciesName: a.slot.speciesName,
         image: a.slot.image,
         role,
-        partner: best && best.score > 0 ? { slotIndex: best.partner.index, speciesName: best.partner.slot.speciesName, image: best.partner.slot.image } : null,
-        reasons: best ? best.reasons : [],
+        partners: ranked
+          .filter(r => r.score > 0)
+          .map(r => ({
+            slotIndex: r.partner.index,
+            speciesName: r.partner.slot.speciesName,
+            image: r.partner.slot.image,
+            score: r.score,
+            reasons: r.reasons
+          })),
         suggestedMoves: suggestMoveset(a, role)
       };
     });

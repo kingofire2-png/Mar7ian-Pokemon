@@ -258,6 +258,11 @@
       .vgc-pairing-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:14px; }
       .vgc-pairing-card { background:rgba(11,14,20,0.85); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:14px; }
       .vgc-pairing-vs { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+      .vgc-pairing-partner { border-top:1px solid rgba(255,255,255,0.06); padding-top:10px; margin-top:10px; }
+      .vgc-pairing-partner:first-child { border-top:none; padding-top:0; margin-top:0; }
+      .vgc-pairing-partner .vgc-pairing-vs:first-child { justify-content:space-between; margin-bottom:6px; }
+      .vgc-pairing-rank { font-size:0.66rem; font-weight:800; text-transform:uppercase; letter-spacing:0.03em; opacity:0.7; }
+      .vgc-pairing-score { font-size:0.7rem; font-weight:800; color:var(--accent); }
       .vgc-pairing-mon { display:flex; flex-direction:column; align-items:center; width:56px; }
       .vgc-pairing-mon img { width:48px; height:48px; object-fit:contain; }
       .vgc-pairing-mon span { font-size:0.62rem; font-weight:700; text-align:center; line-height:1.15; margin-top:2px; }
@@ -775,18 +780,19 @@
 
     const pairings = engine.suggestPairings(team.slots);
 
-    container.innerHTML = `<p class="vgc-analysis-hint" style="margin-bottom:12px;">Per ogni Pokémon: il compagno di squadra con cui farebbe più sinergia in una lotta in Doppio, e 4 mosse suggerite dal suo movepool reale in base a quel ruolo.</p>
+    container.innerHTML = `<p class="vgc-analysis-hint" style="margin-bottom:12px;">Per ogni Pokémon: fino a 2 compagni di squadra classificati per sinergia in una lotta in Doppio (con il motivo e il punteggio di ciascuno), e 4 mosse suggerite dal suo movepool reale in base al ruolo.</p>
       <div class="vgc-pairing-grid">
       ${pairings.map((p, i) => {
         const movesHtml = p.suggestedMoves.length ? p.suggestedMoves.map(m =>
           `<span class="vgc-move-chip" style="--tc: var(--type-${m.typeId || 'normal'});">${m.name}${typeof m.power === 'number' ? `<span class="vgc-move-power">${m.power}</span>` : ''}</span>`
         ).join('') : `<span class="vgc-analysis-empty" style="font-size:0.7rem;">Movepool troppo ridotto per una proposta.</span>`;
 
-        const reasonsHtml = p.reasons.length ? p.reasons.map(r => `<li>${r}</li>`).join('')
-          : `<li>Nessuna sinergia specifica rilevata: consulta comunque la copertura di tipo prima di scegliere il compagno definitivo.</li>`;
-
-        return `
-          <div class="vgc-pairing-card vgc-cascade" style="animation-delay:${i * 60}ms;">
+        const partnersHtml = p.partners.length ? p.partners.map((partner, pi) => `
+          <div class="vgc-pairing-partner">
+            <div class="vgc-pairing-vs">
+              <span class="vgc-pairing-rank">${pi === 0 ? '① Scelta migliore' : '② Alternativa'}</span>
+              <span class="vgc-pairing-score" title="Punteggio di sinergia">★ ${partner.score}</span>
+            </div>
             <div class="vgc-pairing-vs">
               <div class="vgc-pairing-mon">
                 <img src="${p.image}" alt="${p.speciesName}" onerror="this.style.visibility='hidden'">
@@ -794,13 +800,18 @@
               </div>
               <span class="vgc-pairing-plus">+</span>
               <div class="vgc-pairing-mon">
-                ${p.partner
-                  ? `<img src="${p.partner.image}" alt="${p.partner.speciesName}" onerror="this.style.visibility='hidden'"><span>${p.partner.speciesName}</span>`
-                  : `<span style="font-size:1.4rem;opacity:.4;">?</span><span>nessuno</span>`}
+                <img src="${partner.image}" alt="${partner.speciesName}" onerror="this.style.visibility='hidden'">
+                <span>${partner.speciesName}</span>
               </div>
             </div>
+            <ul class="vgc-pairing-reasons">${partner.reasons.map(r => `<li>${r}</li>`).join('')}</ul>
+          </div>
+        `).join('') : `<p class="vgc-analysis-empty" style="font-size:0.72rem;">Nessuna sinergia specifica rilevata con i compagni attuali: consulta comunque la copertura di tipo prima di scegliere il compagno definitivo.</p>`;
+
+        return `
+          <div class="vgc-pairing-card vgc-cascade" style="animation-delay:${i * 60}ms;">
             <span class="vgc-pairing-role">${p.role}</span>
-            <ul class="vgc-pairing-reasons">${reasonsHtml}</ul>
+            ${partnersHtml}
             <div class="vgc-pairing-moves-label">Mosse consigliate per ${p.speciesName}</div>
             <div class="vgc-move-chip-row">${movesHtml}</div>
           </div>
