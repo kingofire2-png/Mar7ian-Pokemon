@@ -255,6 +255,22 @@
       .vgc-suggestion-name { font-size:0.72rem; font-weight:700; margin-top:4px; text-align:center; }
       .vgc-suggestion-score { font-size:0.65rem; color:var(--accent); font-weight:800; margin-top:2px; }
 
+      .vgc-pairing-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:14px; }
+      .vgc-pairing-card { background:rgba(11,14,20,0.85); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:14px; }
+      .vgc-pairing-vs { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+      .vgc-pairing-mon { display:flex; flex-direction:column; align-items:center; width:56px; }
+      .vgc-pairing-mon img { width:48px; height:48px; object-fit:contain; }
+      .vgc-pairing-mon span { font-size:0.62rem; font-weight:700; text-align:center; line-height:1.15; margin-top:2px; }
+      .vgc-pairing-plus { color:var(--accent); font-weight:800; font-size:1rem; }
+      .vgc-pairing-role { display:inline-block; background:rgba(56,189,248,0.15); color:var(--accent); font-size:0.65rem; font-weight:800; padding:2px 8px; border-radius:6px; margin-bottom:8px; letter-spacing:0.02em; }
+      .vgc-pairing-reasons { list-style:none; padding:0; margin:0 0 10px; display:flex; flex-direction:column; gap:5px; }
+      .vgc-pairing-reasons li { font-size:0.72rem; color:var(--text-secondary,#a0aec0); line-height:1.35; padding-left:14px; position:relative; }
+      .vgc-pairing-reasons li::before { content:'—'; position:absolute; left:0; opacity:0.6; }
+      .vgc-pairing-moves-label { font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.04em; opacity:0.6; margin-bottom:6px; }
+      .vgc-move-chip-row { display:flex; flex-wrap:wrap; gap:6px; }
+      .vgc-move-chip { background:rgba(255,255,255,0.06); border-left:3px solid var(--tc); font-size:0.68rem; font-weight:700; padding:4px 8px; border-radius:5px; }
+      .vgc-move-chip .vgc-move-power { opacity:0.65; font-weight:600; margin-left:4px; }
+
       @media (max-width:780px) {
         .vgc-formation { grid-template-columns: repeat(2,1fr); }
         .vgc-header { flex-direction:column; }
@@ -736,9 +752,61 @@
         <h3>✨ Pokémon Suggeriti</h3>
         <div id="vgc-suggestions" class="vgc-suggestions-grid"><p class="vgc-analysis-empty">Caricamento suggerimenti...</p></div>
       </section>
+      <section class="vgc-analysis-block" id="vgc-pairings-block">
+        <h3>🤜🤛 Accoppiamenti in Doppio (2vs2)</h3>
+        <div id="vgc-pairings"></div>
+      </section>
     `;
 
     renderSuggestions(analysis, team);
+    renderPairings(team);
+  }
+
+  function renderPairings(team) {
+    const engine = ENGINE();
+    const container = document.getElementById('vgc-pairings');
+    if (!container) return;
+
+    const filledCount = team.slots.filter(Boolean).length;
+    if (filledCount < 2) {
+      container.innerHTML = `<p class="vgc-analysis-empty">Aggiungi almeno 2 Pokémon alla formazione per vedere gli accoppiamenti consigliati.</p>`;
+      return;
+    }
+
+    const pairings = engine.suggestPairings(team.slots);
+
+    container.innerHTML = `<p class="vgc-analysis-hint" style="margin-bottom:12px;">Per ogni Pokémon: il compagno di squadra con cui farebbe più sinergia in una lotta in Doppio, e 4 mosse suggerite dal suo movepool reale in base a quel ruolo.</p>
+      <div class="vgc-pairing-grid">
+      ${pairings.map((p, i) => {
+        const movesHtml = p.suggestedMoves.length ? p.suggestedMoves.map(m =>
+          `<span class="vgc-move-chip" style="--tc: var(--type-${m.typeId || 'normal'});">${m.name}${typeof m.power === 'number' ? `<span class="vgc-move-power">${m.power}</span>` : ''}</span>`
+        ).join('') : `<span class="vgc-analysis-empty" style="font-size:0.7rem;">Movepool troppo ridotto per una proposta.</span>`;
+
+        const reasonsHtml = p.reasons.length ? p.reasons.map(r => `<li>${r}</li>`).join('')
+          : `<li>Nessuna sinergia specifica rilevata: consulta comunque la copertura di tipo prima di scegliere il compagno definitivo.</li>`;
+
+        return `
+          <div class="vgc-pairing-card vgc-cascade" style="animation-delay:${i * 60}ms;">
+            <div class="vgc-pairing-vs">
+              <div class="vgc-pairing-mon">
+                <img src="${p.image}" alt="${p.speciesName}" onerror="this.style.visibility='hidden'">
+                <span>${p.speciesName}</span>
+              </div>
+              <span class="vgc-pairing-plus">+</span>
+              <div class="vgc-pairing-mon">
+                ${p.partner
+                  ? `<img src="${p.partner.image}" alt="${p.partner.speciesName}" onerror="this.style.visibility='hidden'"><span>${p.partner.speciesName}</span>`
+                  : `<span style="font-size:1.4rem;opacity:.4;">?</span><span>nessuno</span>`}
+              </div>
+            </div>
+            <span class="vgc-pairing-role">${p.role}</span>
+            <ul class="vgc-pairing-reasons">${reasonsHtml}</ul>
+            <div class="vgc-pairing-moves-label">Mosse consigliate per ${p.speciesName}</div>
+            <div class="vgc-move-chip-row">${movesHtml}</div>
+          </div>
+        `;
+      }).join('')}
+      </div>`;
   }
 
   function renderSuggestions(analysis, team) {

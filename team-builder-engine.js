@@ -299,6 +299,242 @@
     return recommended;
   }
 
+  // ===============================
+  // Accoppiamenti da Doppio (2vs2) e mosse consigliate
+  // ===============================
+
+  // Sole/pioggia potenziano le mosse del proprio tipo (x1.5); sabbia/neve in Nona generazione
+  // non potenziano piu' mosse di un tipo (solo Dif./Dif.Sp.), quindi non hanno una voce qui.
+  const WEATHER_MOVE_BOOST = { drought: 'fire', drizzle: 'water' };
+  const WEATHER_LABEL_IT = { drought: 'Sole (Siccità)', drizzle: 'Pioggia (Drizzle)' };
+
+  // Boost di mossa dei terreni (x1.3, solo per Pokémon a terra); effetti extra qualitativi.
+  const TERRAIN_MOVE_BOOST = { 'electric-surge': 'electric', 'grassy-surge': 'grass', 'psychic-surge': 'psychic' };
+  const TERRAIN_LABEL_IT = {
+    'electric-surge': 'Campo Elettrico', 'grassy-surge': 'Campo Erboso',
+    'psychic-surge': 'Campo Psichico', 'misty-surge': 'Campo Nebbioso'
+  };
+  const TERRAIN_QUALITATIVE_IT = {
+    'grassy-surge': 'cura leggermente ogni alleato a terra a fine turno e dimezza Terremoto/Selvatempesta/Scavare',
+    'misty-surge': 'dimezza i danni delle mosse Drago e impedisce le condizioni di stato sugli alleati a terra',
+    'psychic-surge': 'blocca le mosse ad alta priorità dirette contro gli alleati a terra'
+  };
+
+  const TEAM_PROTECT_MOVES = new Set(['Bodyguard', 'Anticipo']); // protezione da mosse ad area/priorità
+
+  // Soglie fisse (statistica calcolata a Lv.50, stessa formula di computeStatTotal) invece di
+  // medie di squadra: con 2-3 Pokemon la media e' troppo sensibile a un singolo outlier per
+  // essere un riferimento stabile di "lento"/"forte". 100 e' la stessa soglia gia' usata da
+  // analyzeTeam() per suggerire Trick Room.
+  const SPEED_BENCHMARK = 100;
+  const OFFENSE_BENCHMARK = 100;
+
+  function movepoolFor(speciesName) {
+    return (window.SharedData && window.SharedData.getPokemonMoves(speciesName)) || [];
+  }
+
+  function statFor(slot, statKey) {
+    return computeStatTotal((slot.statsBase || {})[statKey], (slot.evs || {})[statKey] || 0, statKey, slot.nature);
+  }
+
+  function profileSlot(slot) {
+    const movepool = movepoolFor(slot.speciesName);
+    const hasMove = name => movepool.some(m => m.name === name);
+    const attackingMoves = movepool
+      .filter(m => m.category === 'Fisico' || m.category === 'Speciale')
+      .map(m => ({ ...m, typeId: TYPE_ITA_TO_ID[(m.type || '').toLowerCase()] || null }))
+      .filter(m => typeof m.power === 'number' && m.power > 0)
+      .sort((a, b) => b.power - a.power);
+
+    const tags = [];
+    if (WEATHER_ABILITY_SLUGS.has(slot.abilitySlug)) tags.push('weather-setter');
+    if (TERRAIN_ABILITY_SLUGS.has(slot.abilitySlug)) tags.push('terrain-setter');
+    if (hasMove('Sonoqui') || hasMove('Polverabbia')) tags.push('redirector');
+    if (hasMove('Distortozona')) tags.push('trickroom');
+    if (hasMove('Ventoincoda')) tags.push('tailwind');
+    if (hasMove('Bodyguard') || hasMove('Anticipo')) tags.push('team-protect');
+
+    return {
+      slot,
+      movepool,
+      attackingMoves,
+      hasMove,
+      hasProtect: hasMove('Protezione'),
+      speed: statFor(slot, 'speed'),
+      offense: Math.max(statFor(slot, 'attack'), statFor(slot, 'special-attack')),
+      bulk: statFor(slot, 'hp') + statFor(slot, 'defense') + statFor(slot, 'special-defense'),
+      tags
+    };
+  }
+
+  // Punteggio di sinergia difensiva "classico": quante debolezze di uno vengono coperte
+  // (resistite o annullate) dai tipi dell'altro, nelle due direzioni.
+  function typeSynergyScore(a, b) {
+    const multA = calculateTypeMultipliers(a.slot.types);
+    const multB = calculateTypeMultipliers(b.slot.types);
+    let score = 0;
+    const covered = [];
+    Object.keys(multA).forEach(t => {
+      if (multA[t] > 1 && multB[t] < 1) {
+        score += multB[t] === 0 ? 2 : 1;
+        covered.push(TYPE_NAMES_ITA[t] || t);
+      }
+    });
+    return { score, covered };
+  }
+
+  function scorePair(a, b, teamAvg) {
+    let score = 0;
+    const reasons = [];
+
+    if (a.tags.includes('weather-setter')) {
+      const abilitySlug = a.slot.abilitySlug;
+      const boostType = WEATHER_MOVE_BOOST[abilitySlug];
+      if (boostType && b.attackingMoves.some(m => m.typeId === boostType)) {
+        score += 3;
+        reasons.push(`${a.slot.abilityDisplayName} (${WEATHER_LABEL_IT[abilitySlug]}) potenzia le mosse di tipo ${TYPE_NAMES_ITA[boostType]} di ${b.slot.speciesName}.`);
+      }
+    }
+    if (a.tags.includes('terrain-setter')) {
+      const abilitySlug = a.slot.abilitySlug;
+      const boostType = TERRAIN_MOVE_BOOST[abilitySlug];
+      if (boostType && b.attackingMoves.some(m => m.typeId === boostType)) {
+        score += 3;
+        reasons.push(`${TERRAIN_LABEL_IT[abilitySlug]} (${a.slot.speciesName}) potenzia le mosse di tipo ${TYPE_NAMES_ITA[boostType]} di ${b.slot.speciesName}.`);
+      }
+      if (TERRAIN_QUALITATIVE_IT[abilitySlug]) {
+        score += 1;
+        reasons.push(`${TERRAIN_LABEL_IT[abilitySlug]} (${a.slot.speciesName}) ${TERRAIN_QUALITATIVE_IT[abilitySlug]} — utile anche per ${b.slot.speciesName}.`);
+      }
+    }
+    if (a.tags.includes('redirector')) {
+      const moveName = a.hasMove('Sonoqui') ? 'Sonoqui' : 'Polverabbia';
+      const fragile = b.bulk < teamAvg.bulk;
+      score += fragile ? 3 : 2;
+      reasons.push(`${a.slot.speciesName} può attirare gli attacchi su di sé con ${moveName}${fragile ? ', proteggendo ' + b.slot.speciesName + ' (più fragile)' : ' mentre ' + b.slot.speciesName + ' attacca liberamente'}.`);
+    }
+    if (a.tags.includes('team-protect') && b.offense >= OFFENSE_BENCHMARK) {
+      score += 1;
+      reasons.push(`${a.slot.speciesName} riduce i danni da mosse ad area/priorità su tutta la squadra, incluso ${b.slot.speciesName}.`);
+    }
+    if (a.tags.includes('trickroom') && b.speed < SPEED_BENCHMARK && b.offense >= OFFENSE_BENCHMARK) {
+      score += 3;
+      reasons.push(`Distortozona (${a.slot.speciesName}) inverte l'ordine di turno: ${b.slot.speciesName} è lento ma potente, colpirebbe per primo.`);
+    }
+    if (a.tags.includes('tailwind') && b.offense >= OFFENSE_BENCHMARK) {
+      score += 2;
+      reasons.push(`Ventoincoda (${a.slot.speciesName}) raddoppia la Velocità della squadra per 4 turni: ${b.slot.speciesName} guadagna l'iniziativa.`);
+    }
+
+    const { score: tScore, covered } = typeSynergyScore(a, b);
+    if (tScore > 0) {
+      score += tScore;
+      reasons.push(`${b.slot.speciesName} copre le debolezze di tipo ${covered.join(', ')} di ${a.slot.speciesName}.`);
+    }
+
+    return { score, reasons };
+  }
+
+  function classifyRole(profile) {
+    if (profile.tags.includes('redirector')) return 'Supporto (Richiamo avversari)';
+    if (profile.tags.includes('weather-setter')) return 'Setter Meteo';
+    if (profile.tags.includes('terrain-setter')) return 'Setter Terreno';
+    if (profile.tags.includes('trickroom')) return 'Controllo Velocità (Trick Room)';
+    if (profile.tags.includes('tailwind')) return 'Controllo Velocità (Ventoincoda)';
+    if (profile.tags.includes('team-protect')) return 'Supporto (Protezione di squadra)';
+    if (profile.offense >= OFFENSE_BENCHMARK) return 'Attaccante';
+    return 'Difensivo/Bilanciato';
+  }
+
+  // Sceglie fino a 4 mosse dal movepool reale del Pokemon, coerenti col ruolo assegnato per
+  // quell'accoppiamento. Non inventa mosse: usa solo cio' che il Pokemon puo' davvero imparare.
+  function suggestMoveset(profile, role) {
+    const picked = [];
+    const pickedNames = new Set();
+    const own = new Set((profile.slot.types || []));
+
+    function add(nameOrMove) {
+      const raw = typeof nameOrMove === 'string'
+        ? profile.movepool.find(m => m.name === nameOrMove)
+        : nameOrMove;
+      if (!raw || pickedNames.has(raw.name) || picked.length >= 4) return false;
+      const typeId = raw.typeId || TYPE_ITA_TO_ID[(raw.type || '').toLowerCase()] || null;
+      picked.push({ ...raw, typeId });
+      pickedNames.add(raw.name);
+      return true;
+    }
+
+    if (role.startsWith('Supporto (Richiamo')) {
+      add('Sonoqui'); add('Polverabbia');
+      add('Protezione');
+      add('Distortozona'); add('Ventoincoda');
+    } else if (role.startsWith('Controllo Velocità (Trick Room')) {
+      add('Distortozona');
+      add('Protezione');
+    } else if (role.startsWith('Controllo Velocità (Ventoincoda')) {
+      add('Ventoincoda');
+      add('Protezione');
+    } else if (role.startsWith('Supporto (Protezione')) {
+      add('Bodyguard'); add('Anticipo');
+      add('Protezione');
+    }
+
+    // Riempie gli slot restanti con le mosse offensive migliori. Prima la mossa piu' potente
+    // per OGNI tipo posseduto (STAB): un Pokemon di doppio tipo prende sia la sua migliore
+    // mossa del tipo primario sia quella del tipo secondario, invece di 4 mosse dello stesso
+    // tipo solo perche' quel tipo ha le mosse piu' potenti in assoluto. Poi riempie col resto
+    // (altre STAB o copertura) in ordine di potenza.
+    own.forEach(typeId => {
+      const best = profile.attackingMoves.find(m => m.typeId === typeId && !pickedNames.has(m.name));
+      if (best) add(best);
+    });
+    for (const m of profile.attackingMoves) { if (picked.length >= 4) break; add(m); }
+
+    if (picked.length < 4) add('Protezione');
+    // Se il movepool e' minuscolo (es. Ditto, Metapod), restituisce solo cio' che esiste davvero.
+    for (const m of profile.movepool) { if (picked.length >= 4) break; add(m); }
+
+    return picked;
+  }
+
+  function suggestPairings(slots) {
+    const filled = (slots || [])
+      .map((slot, index) => ({ slot, index }))
+      .filter(x => x.slot);
+
+    if (filled.length < 2) return [];
+
+    const profiles = filled.map(x => ({ ...profileSlot(x.slot), index: x.index }));
+    // Media di squadra usata solo per il confronto "fragile rispetto ai compagni" del
+    // richiamo avversari: per velocità/attacco si usano soglie fisse (SPEED_BENCHMARK/
+    // OFFENSE_BENCHMARK) perche' la media di 2-3 Pokemon e' troppo rumorosa per essere
+    // un riferimento affidabile (es. un solo Pokemon molto lento abbassa la media di squadra
+    // al punto che i compagni "normali" risultano falsamente piu' lenti della media).
+    const teamAvg = {
+      bulk: profiles.reduce((s, p) => s + p.bulk, 0) / profiles.length
+    };
+
+    return profiles.map(a => {
+      let best = null;
+      profiles.forEach(b => {
+        if (b.index === a.index) return;
+        const { score, reasons } = scorePair(a, b, teamAvg);
+        if (!best || score > best.score) best = { partner: b, score, reasons };
+      });
+
+      const role = classifyRole(a);
+      return {
+        slotIndex: a.index,
+        speciesName: a.slot.speciesName,
+        image: a.slot.image,
+        role,
+        partner: best && best.score > 0 ? { slotIndex: best.partner.index, speciesName: best.partner.slot.speciesName, image: best.partner.slot.image } : null,
+        reasons: best ? best.reasons : [],
+        suggestedMoves: suggestMoveset(a, role)
+      };
+    });
+  }
+
   window.TeamBuilderEngine = {
     TYPES_CONFIG,
     TYPE_NAMES_ITA,
@@ -312,6 +548,7 @@
     analyzeTeam,
     suggestCandidates,
     recommendCoverageTypes,
+    suggestPairings,
     bumpDexVersion
   };
 })();
