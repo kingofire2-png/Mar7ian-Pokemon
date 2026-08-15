@@ -528,12 +528,26 @@
     const evTotal = Object.values(slot.evs).reduce((a, b) => a + b, 0);
 
     const movesDetailed = getPokemonMoves(slot.speciesName);
+
+    // Raggruppamento mosse per tipo (stesso schema della sezione Calcolo Danni)
+    const groupedMoves = {};
+    movesDetailed.forEach(m => {
+      if (!groupedMoves[m.type]) groupedMoves[m.type] = [];
+      groupedMoves[m.type].push(m);
+    });
+
     const moveSelectsHtml = [0, 1, 2, 3].map(i => {
       const current = slot.moves[i];
-      const options = movesDetailed.map(m =>
-        `<option value="${m.name}" ${current && current.name === m.name ? 'selected' : ''}>[${m.type}] ${m.name}</option>`
-      ).join('');
-      const emptyOptionsMsg = movesDetailed.length === 0 ? `<option value="">Nessuna mossa trovata nel DB</option>` : `<option value="">— Mossa ${i + 1} —</option>${options}`;
+      let optionsHtml = '';
+      for (const [typeKey, movesGroup] of Object.entries(groupedMoves)) {
+        const typeLabelITA = typeKey.toUpperCase();
+        optionsHtml += `<optgroup label="TIPO ${typeLabelITA}">`;
+        movesGroup.forEach(m => {
+          optionsHtml += `<option value="${m.name}" ${current && current.name === m.name ? 'selected' : ''}>[${typeLabelITA}] ${m.name}</option>`;
+        });
+        optionsHtml += `</optgroup>`;
+      }
+      const emptyOptionsMsg = movesDetailed.length === 0 ? `<option value="">Nessuna mossa trovata nel DB</option>` : `<option value="">— Mossa ${i + 1} —</option>${optionsHtml}`;
       return `<select class="vgc-move-select" onchange="window.vgcUpdateMove(${editingSlotIndex}, ${i}, this.value)">${emptyOptionsMsg}</select>`;
     }).join('');
 
