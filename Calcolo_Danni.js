@@ -48,6 +48,78 @@ function getPokemonMoves(name) {
   let statsBonusB = { 'hp': 0, 'attack': 0, 'defense': 0, 'special-attack': 0, 'special-defense': 0, 'speed': 0 };
   let itemA = '';
   let itemB = '';
+  let natureA = 'Ardita';
+  let natureB = 'Ardita';
+
+  function emptyStages() {
+    return { attack: 0, defense: 0, 'special-attack': 0, 'special-defense': 0, speed: 0 };
+  }
+  function clampStage(v) {
+    return Math.max(-6, Math.min(6, v));
+  }
+  // Stessa formula di Calcolo_Danni_2v2.js/Calcolo_Danni_Engine.js, duplicata qui per lo stesso
+  // motivo gia' documentato altrove nel progetto: non dipendere dall'ordine di caricamento
+  // degli script (questo file carica prima di Calcolo_Danni_Engine.js).
+  function stageMultiplier(stage) {
+    return stage >= 0 ? (2 + stage) / 2 : 2 / (2 - stage);
+  }
+  function effectiveStatValue(baseVal, ev, statKey, nature, stage) {
+    const raw = window.SharedData.computeStatTotal(baseVal, ev, statKey, nature);
+    if (statKey === 'hp') return raw;
+    return Math.floor(raw * stageMultiplier(stage || 0));
+  }
+  let statStagesA = emptyStages();
+  let statStagesB = emptyStages();
+
+  // Stato completo di uno slot (Pokemon + EV + Natura + fasi + oggetto), letto da
+  // Calcolo_Danni_Engine.js al posto dello scraping del DOM: stessa fonte di dati usata per
+  // disegnare i box A/B, quindi Natura/fasi statistiche non vengono piu' ignorate nel calcolo.
+  window.getCalc1v1Slot = function (slot) {
+    return slot === 'A'
+      ? { pokemon: pokemonA, evs: statsBonusA, nature: natureA, stages: statStagesA, item: itemA }
+      : { pokemon: pokemonB, evs: statsBonusB, nature: natureB, stages: statStagesB, item: itemB };
+  };
+
+  function buildNatureOptionsHtml(selectedNature) {
+    return Object.keys(window.SharedData.NATURES).map(n =>
+      `<option value="${n}" ${n === selectedNature ? 'selected' : ''}>${n}</option>`
+    ).join('');
+  }
+
+  function buildStageAdjustorHtml(slot, stages) {
+    const STAT_NAMES_STAGE = { attack: 'Attacco', defense: 'Difesa', 'special-attack': 'Sp. Atk', 'special-defense': 'Sp. Def', speed: 'Velocità' };
+    const rows = Object.keys(STAT_NAMES_STAGE).map(k => {
+      const v = stages[k] || 0;
+      const color = v > 0 ? '#84cc16' : (v < 0 ? '#ef4444' : 'var(--text-muted)');
+      return `
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:4px; font-size:0.7rem;">
+          <span style="color:var(--text-muted);">${STAT_NAMES_STAGE[k]}</span>
+          <div style="display:flex; align-items:center; gap:4px;">
+            <button type="button" onclick="window.updateStatStage('${slot}', '${k}', -1)" style="width:20px; height:20px; line-height:18px; padding:0; background:var(--bg-dark); border:1px solid var(--border-color); color:#fff; border-radius:4px; cursor:pointer; font-size:0.75rem;">-</button>
+            <span style="width:26px; text-align:center; font-weight:800; color:${color};">${v > 0 ? '+' + v : v}</span>
+            <button type="button" onclick="window.updateStatStage('${slot}', '${k}', 1)" style="width:20px; height:20px; line-height:18px; padding:0; background:var(--bg-dark); border:1px solid var(--border-color); color:#fff; border-radius:4px; cursor:pointer; font-size:0.75rem;">+</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+    return `
+      <div style="background: var(--bg-dark); padding: 10px; border-radius: 8px; margin-bottom: 12px; border: 1px solid var(--border-color);">
+        <div style="font-size:0.68rem; font-weight:800; color:var(--text-muted); margin-bottom:6px; letter-spacing:0.4px;">FASI STATISTICHE</div>
+        <div style="display:flex; flex-direction:column; gap:4px;">${rows}</div>
+      </div>
+    `;
+  }
+
+  window.updateNature = function (slot, natureKey) {
+    if (slot === 'A') { natureA = natureKey; renderPokemonA(); }
+    else { natureB = natureKey; renderPokemonB(); }
+  };
+
+  window.updateStatStage = function (slot, statKey, delta) {
+    const stages = slot === 'A' ? statStagesA : statStagesB;
+    stages[statKey] = clampStage((stages[statKey] || 0) + delta);
+    if (slot === 'A') renderPokemonA(); else renderPokemonB();
+  };
 
   function buildItemOptionsHtml(selectedSlug) {
     return window.SharedData.ITEM_SLUGS.map(slug => {
@@ -444,11 +516,15 @@ function getPokemonMoves(name) {
         pokemonA = pokemonObj;
         itemA = '';
         statsBonusA = { 'hp': 0, 'attack': 0, 'defense': 0, 'special-attack': 0, 'special-defense': 0, 'speed': 0 };
+        natureA = 'Ardita';
+        statStagesA = emptyStages();
         await renderPokemonA();
       } else {
         pokemonB = pokemonObj;
         itemB = '';
         statsBonusB = { 'hp': 0, 'attack': 0, 'defense': 0, 'special-attack': 0, 'special-defense': 0, 'speed': 0 };
+        natureB = 'Ardita';
+        statStagesB = emptyStages();
         renderPokemonB();
       }
 
@@ -511,8 +587,7 @@ data-pp="${m.pp}">
       const statKey = s.stat.name;
       const baseVal = s.base_stat;
       const bonusEV = statsBonusA[statKey] || 0;
-      const offset = (statKey === 'hp') ? 75 : 20;
-      const totalVal = baseVal + offset + bonusEV;
+      const totalVal = effectiveStatValue(baseVal, bonusEV, statKey, natureA, statStagesA[statKey]);
 
       return `
         <div style="display: grid; grid-template-columns: 80px 50px 1fr 100px; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 0.8rem;">
@@ -606,7 +681,16 @@ data-pp="${m.pp}">
 
       ${buildItemBlockHtml('A', itemA)}
 
-      <div style="font-size: 0.75rem; font-weight: 700; color: var(--accent); margin-bottom: 8px;">STATISTICHE (BASE + OFFSET + EV 0-32)</div>
+      <div style="background: var(--bg-dark); padding: 12px; border-radius: 8px; margin-bottom: 16px; border: 1px solid var(--border-color);">
+        <label style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 6px;">NATURA</label>
+        <select onchange="window.updateNature('A', this.value)" style="width:100%; background:var(--panel-bg); border:1px solid var(--border-color); color:#fff; padding:8px; border-radius:6px; font-size:0.85rem; font-weight:700;">
+          ${buildNatureOptionsHtml(natureA)}
+        </select>
+      </div>
+
+      ${buildStageAdjustorHtml('A', statStagesA)}
+
+      <div style="font-size: 0.75rem; font-weight: 700; color: var(--accent); margin-bottom: 8px;">STATISTICHE (BASE + EV 0-32 + NATURA + FASI)</div>
       <div>${statsHtml}</div>
     `;
 
@@ -627,8 +711,7 @@ data-pp="${m.pp}">
       const statKey = s.stat.name;
       const baseVal = s.base_stat;
       const bonusEV = statsBonusB[statKey] || 0;
-      const offset = (statKey === 'hp') ? 75 : 20;
-      const totalVal = baseVal + offset + bonusEV;
+      const totalVal = effectiveStatValue(baseVal, bonusEV, statKey, natureB, statStagesB[statKey]);
 
       return `
         <div style="display: grid; grid-template-columns: 80px 50px 1fr 100px; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 0.8rem;">
@@ -656,7 +739,16 @@ data-pp="${m.pp}">
 
       ${buildItemBlockHtml('B', itemB)}
 
-      <div style="font-size: 0.75rem; font-weight: 700; color: var(--violet); margin-bottom: 8px;">STATISTICHE (BASE + OFFSET + EV 0-32)</div>
+      <div style="background: var(--bg-dark); padding: 12px; border-radius: 8px; margin-bottom: 16px; border: 1px solid var(--border-color);">
+        <label style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 6px;">NATURA</label>
+        <select onchange="window.updateNature('B', this.value)" style="width:100%; background:var(--panel-bg); border:1px solid var(--border-color); color:#fff; padding:8px; border-radius:6px; font-size:0.85rem; font-weight:700;">
+          ${buildNatureOptionsHtml(natureB)}
+        </select>
+      </div>
+
+      ${buildStageAdjustorHtml('B', statStagesB)}
+
+      <div style="font-size: 0.75rem; font-weight: 700; color: var(--violet); margin-bottom: 8px;">STATISTICHE (BASE + EV 0-32 + NATURA + FASI)</div>
       <div>${statsHtml}</div>
     `;
 

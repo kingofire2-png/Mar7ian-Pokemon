@@ -30,12 +30,21 @@
   // ===============================
   const MIN_ROLL = 0.85;
 
+  // Fase statistica -> moltiplicatore (es. +1 = x1.5, -1 = x0.66), mai su PS. Unica fonte di
+  // verita' condivisa tra 1vs1 e 2vs2 (prima duplicata solo in Calcolo_Danni_2v2.js).
+  function stageMultiplier(stage) {
+    return stage >= 0 ? (2 + stage) / 2 : 2 / (2 - stage);
+  }
+
+  // Ordine canonico dei moltiplicatori (come Pokemon Showdown/Bulbapedia): bersagli multipli
+  // (Doppio) prima di STAB/tipo/oggetto. Ininfluente sull'1vs1 (spreadMult sempre 1 li'), ma
+  // corregge scostamenti di arrotondamento nel 2vs2 con mosse ad area.
   function computeDamage({ level, movePower, attackStat, defenseStat, isStab, typeMultiplier, extraDamageMult = 1, spreadMult = 1 }) {
     let bD = Math.floor(Math.floor((Math.floor((2 * level) / 5 + 2) * movePower * attackStat) / defenseStat) / 50) + 2;
+    bD = Math.floor(bD * spreadMult);
     bD = Math.floor(bD * (isStab ? 1.5 : 1));
     bD = Math.floor(bD * typeMultiplier);
     bD = Math.floor(bD * extraDamageMult);
-    bD = Math.floor(bD * spreadMult);
     return bD;
   }
 
@@ -208,34 +217,17 @@
     boxA.appendChild(btn);
   }
 
-  function getStatFromDOM(boxId, statNameSearch) {
-    const box = document.getElementById(boxId);
-    if (!box) return 1;
-
-    const rows = box.querySelectorAll('div[style*="grid-template-columns"]');
-    for (const row of rows) {
-      const spans = row.querySelectorAll('span');
-      if (spans.length >= 2) {
-        const name = spans[0].textContent.trim();
-        if (name.toLowerCase() === statNameSearch.toLowerCase()) {
-          return parseInt(spans[1].textContent.trim(), 10) || 1;
-        }
-      }
-    }
-    return 1;
-  }
-
-  function getPokemonTypesFromDOM(boxId) {
-    const box = document.getElementById(boxId);
-    if (!box) return [];
-
-    const spans = box.querySelectorAll('span[style*="border-radius: 4px"]');
-    const types = [];
-    spans.forEach(s => {
-      const rawType = s.textContent.trim().toLowerCase();
-      types.push(TYPE_ITA_TO_ENG[rawType] || rawType);
-    });
-    return types;
+  // Statistica finale di uno slot 1vs1 (base + EV + Natura, poi fase statistica su tutto
+  // tranne PS). Legge lo stato reale esposto da Calcolo_Danni.js (window.getCalc1v1Slot)
+  // invece di fare scraping del DOM: stessa fonte di dati e stessa formula del 2vs2
+  // (window.SharedData.computeStatTotal + stageMultiplier), niente piu' Natura/fasi ignorate.
+  function statValueFor(slot, statKey) {
+    const statObj = slot.pokemon.stats.find(s => s.stat.name === statKey);
+    const base = statObj ? statObj.base_stat : 1;
+    const raw = window.SharedData.computeStatTotal(base, (slot.evs || {})[statKey] || 0, statKey, slot.nature);
+    if (statKey === 'hp') return raw;
+    const stage = (slot.stages && slot.stages[statKey]) || 0;
+    return Math.floor(raw * stageMultiplier(stage));
   }
 
   function calculateAndShowDamage() {
@@ -250,33 +242,42 @@
       return;
     }
 
+    const slotA = window.getCalc1v1Slot && window.getCalc1v1Slot('A');
+    const slotB = window.getCalc1v1Slot && window.getCalc1v1Slot('B');
+    if (!slotA || !slotA.pokemon || !slotB || !slotB.pokemon) {
+      alert('Seleziona sia il Pokémon A che il Pokémon B!');
+      return;
+    }
+
     const moveOpt = selectEl.options[selectEl.selectedIndex];
     const movePower = parseInt(moveOpt?.getAttribute('data-power') || '0', 10) || 0;
     const moveName = moveOpt?.getAttribute('data-name') || selectEl.value;
 
-    const nameA = document.getElementById('box-a')?.querySelector('h3')?.textContent || 'Pokémon A';
-    const nameB = document.getElementById('box-b')?.querySelector('h3')?.textContent || 'Pokémon B';
+    const nameA = slotA.pokemon.name;
+    const nameB = slotB.pokemon.name;
 
-    const hpB = getStatFromDOM('box-b', 'PS');
+    const hpB = statValueFor(slotB, 'hp');
     let attackStat = 0;
     let defenseStat = 0;
     let statOffensivaNome = '';
     let statDifensivaNome = '';
 
     if (currentMoveCategory === 'physical') {
-      attackStat = getStatFromDOM('box-a', 'Attacco');
-      defenseStat = getStatFromDOM('box-b', 'Difesa');
+      attackStat = statValueFor(slotA, 'attack');
+      defenseStat = statValueFor(slotB, 'defense');
       statOffensivaNome = 'Attacco';
       statDifensivaNome = 'Difesa';
     } else {
-      attackStat = getStatFromDOM('box-a', 'Sp. Atk');
-      defenseStat = getStatFromDOM('box-b', 'Sp. Def');
+      attackStat = statValueFor(slotA, 'special-attack');
+      defenseStat = statValueFor(slotB, 'special-defense');
       statOffensivaNome = 'Sp. Atk';
       statDifensivaNome = 'Sp. Def';
     }
 
-    const typesA = getPokemonTypesFromDOM('box-a');
-    const typesB = getPokemonTypesFromDOM('box-b');
+    // Tipi gia' in inglese (SharedData.getSpeciesDetail arriva da PokeAPI: data.types[].type.name),
+    // stessa indicizzazione di TYPE_CHART_BY_ATTACKER: nessuna conversione ITA->ENG necessaria qui.
+    const typesA = slotA.pokemon.types;
+    const typesB = slotB.pokemon.types;
 
     let typeMultiplier = 1;
     typesB.forEach(defType => {
@@ -290,9 +291,8 @@
 
     const level = 50;
 
-    // Oggetti equipaggiati (selezionati nel box, salvati come data-item-slug)
-    const itemSlugA = document.getElementById('box-a')?.dataset.itemSlug || '';
-    const itemSlugB = document.getElementById('box-b')?.dataset.itemSlug || '';
+    const itemSlugA = slotA.item || '';
+    const itemSlugB = slotB.item || '';
 
     const offense = applyOffensiveItemEffects({
       itemSlug: itemSlugA, category: currentMoveCategory, moveType: currentMoveType,
@@ -457,7 +457,8 @@
     applyDefensiveItemEffects,
     TYPE_ITA_TO_ENG,
     CATEGORY_TRANSLATIONS,
-    MIN_ROLL
+    MIN_ROLL,
+    stageMultiplier
   };
 
 })();
