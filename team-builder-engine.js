@@ -322,6 +322,14 @@
 
   const TEAM_PROTECT_MOVES = new Set(['Bodyguard', 'Anticipo']); // protezione da mosse ad area/priorità
 
+  // Abilità che raddoppiano la Velocità sotto un meteo specifico: sinergia diretta con un
+  // compagno che pianta quel meteo (Clorofilla+Siccità, Nuotafoglia+Piogga, ecc.).
+  const WEATHER_SPEED_BOOST_ABILITY = { drought: 'chlorophyll', drizzle: 'swift-swim', 'sand-stream': 'sand-rush', 'snow-warning': 'slush-rush' };
+
+  // Mosse schermo (nomi italiani verificati contro pokemon-moves.json: "Velo Aurora" non
+  // esiste, il nome corretto e' "Velaurora"), dimezzano i danni subiti da tutta la squadra.
+  const SCREEN_SETTER_MOVES = new Set(['Riflesso', 'Schermoluce', 'Velaurora']);
+
   // Soglie fisse (statistica calcolata a Lv.50, stessa formula di computeStatTotal) invece di
   // medie di squadra: con 2-3 Pokemon la media e' troppo sensibile a un singolo outlier per
   // essere un riferimento stabile di "lento"/"forte". 100 e' la stessa soglia gia' usata da
@@ -335,15 +343,19 @@
   // resistenza di tipo, quindi pesano di piu'.
   const SCORE = {
     weatherMoveBoost: 3,
+    weatherSpeedBoost: 3,
     terrainMoveBoost: 3,
     terrainQualitative: 1,
     redirectFragilePartner: 4,
     redirectGeneric: 2,
     teamProtect: 1,
+    screenSetter: 1,
     trickRoom: 4,
+    sashReliability: 1,
     tailwind: 3,
     fakeOutGeneric: 1,
     fakeOutEnablesSetup: 2,
+    intimidateSupport: 2,
     typeSynergyResist: 1,
     typeSynergyImmune: 2
   };
@@ -373,6 +385,12 @@
     if (hasMove('Ventoincoda')) tags.push('tailwind');
     if (hasMove('Bodyguard') || hasMove('Anticipo')) tags.push('team-protect');
     if (hasMove('Fintoattacco')) tags.push('fake-out');
+    if ([...SCREEN_SETTER_MOVES].some(hasMove)) tags.push('screen-setter');
+    if (slot.abilitySlug === 'intimidate') tags.push('intimidate');
+    if (Object.values(WEATHER_SPEED_BOOST_ABILITY).includes(slot.abilitySlug)) tags.push('weather-speed-boost');
+
+    const physicalAttack = statFor(slot, 'attack');
+    const specialAttack = statFor(slot, 'special-attack');
 
     return {
       slot,
@@ -381,10 +399,18 @@
       hasMove,
       hasProtect: hasMove('Protezione'),
       speed: statFor(slot, 'speed'),
-      offense: Math.max(statFor(slot, 'attack'), statFor(slot, 'special-attack')),
+      physicalAttack,
+      specialAttack,
+      offense: Math.max(physicalAttack, specialAttack),
       bulk: statFor(slot, 'hp') + statFor(slot, 'defense') + statFor(slot, 'special-defense'),
       tags
     };
+  }
+
+  // Un attaccante e' "fisico" se il suo Attacco calcolato supera lo Sp. Atk ed e' abbastanza
+  // alto da contare come minaccia reale (stessa soglia OFFENSE_BENCHMARK usata altrove).
+  function isPhysicalAttacker(profile) {
+    return profile.physicalAttack > profile.specialAttack && profile.offense >= OFFENSE_BENCHMARK;
   }
 
   // Punteggio di sinergia difensiva "classico": quante debolezze di uno vengono coperte
@@ -421,6 +447,11 @@
         score += SCORE.weatherMoveBoost;
         reasons.push(`${a.slot.abilityDisplayName} (${WEATHER_LABEL_IT[abilitySlug]}) potenzia le mosse di tipo ${TYPE_NAMES_ITA[boostType]} di ${b.slot.speciesName}.`);
       }
+      const speedAbility = WEATHER_SPEED_BOOST_ABILITY[abilitySlug];
+      if (speedAbility && b.slot.abilitySlug === speedAbility) {
+        score += SCORE.weatherSpeedBoost;
+        reasons.push(`${a.slot.abilityDisplayName} (${WEATHER_LABEL_IT[abilitySlug]}) raddoppia la Velocità di ${b.slot.speciesName} grazie a ${b.slot.abilityDisplayName}.`);
+      }
     }
     if (a.tags.includes('terrain-setter')) {
       const abilitySlug = a.slot.abilitySlug;
@@ -444,13 +475,27 @@
       score += SCORE.teamProtect;
       reasons.push(`${a.slot.speciesName} riduce i danni da mosse ad area/priorità su tutta la squadra, incluso ${b.slot.speciesName}.`);
     }
+    if (a.tags.includes('screen-setter') && b.offense >= OFFENSE_BENCHMARK) {
+      score += SCORE.screenSetter;
+      reasons.push(`${a.slot.speciesName} può piazzare Riflesso/Schermoluce/Velaurora, dimezzando i danni subiti da tutta la squadra incluso ${b.slot.speciesName}.`);
+    }
+    // Trick Room e Ventoincoda risolvono lo stesso problema (chi si muove per primo) in modo
+    // opposto: mai sommarli sullo stesso compagno, stessa priorita' di classifyRole (Trick Room
+    // vince se un Pokemon impara entrambe le mosse).
     if (a.tags.includes('trickroom') && b.speed < SPEED_BENCHMARK && b.offense >= OFFENSE_BENCHMARK) {
       score += SCORE.trickRoom;
       reasons.push(`Distortozona (${a.slot.speciesName}) inverte l'ordine di turno: ${b.slot.speciesName} è lento ma potente, colpirebbe per primo.`);
-    }
-    if (a.tags.includes('tailwind') && b.offense >= OFFENSE_BENCHMARK) {
+      if (a.slot.item === 'focus-sash') {
+        score += SCORE.sashReliability;
+        reasons.push(`${a.slot.speciesName} porta la Focus Sash: sopravvive quasi sempre al primo colpo per piazzare Distortozona in sicurezza.`);
+      }
+    } else if (a.tags.includes('tailwind') && b.offense >= OFFENSE_BENCHMARK) {
       score += SCORE.tailwind;
       reasons.push(`Ventoincoda (${a.slot.speciesName}) raddoppia la Velocità della squadra per 4 turni: ${b.slot.speciesName} guadagna l'iniziativa.`);
+    }
+    if (a.tags.includes('intimidate') && isPhysicalAttacker(b)) {
+      score += SCORE.intimidateSupport;
+      reasons.push(`${a.slot.abilityDisplayName} (${a.slot.speciesName}) abbassa l'Attacco degli avversari a inizio lotta, proteggendo ${b.slot.speciesName} (attaccante fisico) dai contrattacchi.`);
     }
     if (a.tags.includes('fake-out')) {
       const enables = needsSafeSetupTurn(b);
@@ -476,6 +521,8 @@
     if (profile.tags.includes('trickroom')) return 'Controllo Velocità (Trick Room)';
     if (profile.tags.includes('tailwind')) return 'Controllo Velocità (Ventoincoda)';
     if (profile.tags.includes('team-protect')) return 'Supporto (Protezione di squadra)';
+    if (profile.tags.includes('screen-setter')) return 'Supporto (Schermi)';
+    if (profile.tags.includes('intimidate')) return 'Supporto (Intimidazione)';
     if (profile.offense >= OFFENSE_BENCHMARK) return 'Attaccante';
     return 'Difensivo/Bilanciato';
   }
@@ -506,6 +553,8 @@
       add('Ventoincoda');
     } else if (role.startsWith('Supporto (Protezione')) {
       add('Bodyguard'); add('Anticipo');
+    } else if (role.startsWith('Supporto (Schermi')) {
+      add('Riflesso'); add('Schermoluce'); add('Velaurora');
     }
     // Fintoattacco (priorita', fa saltare il turno) e Protezione sono cardine di quasi ogni
     // set da Doppio reale: li si propone sempre quando disponibili, non solo per i ruoli di
