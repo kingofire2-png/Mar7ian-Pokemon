@@ -20,6 +20,12 @@
   let selectedPickerTypes = [];
   let saveDebounceTimer = null;
 
+  // Stato dei toggle "Vista Fasce di Velocità": null = usa il default reale della squadra
+  // (analysis.trickRoomActive/tailwindActive), altrimenti l'utente ha scelto manualmente di
+  // simulare uno scenario diverso (es. "e se Ventoincoda fosse già scaduto?").
+  let speedTierState = { trickRoom: null, tailwind: null };
+  let lastTeamAnalysis = null;
+
   // ===============================
   // Persistenza
   // ===============================
@@ -244,6 +250,8 @@
       .vgc-speed-rank { color:var(--accent); font-weight:800; }
       .vgc-speed-value { text-align:right; font-weight:800; color:var(--accent); }
       .vgc-speed-tailwind { text-align:right; font-weight:800; color:var(--accent); font-size:0.75rem; white-space:nowrap; }
+      .vgc-speed-toggles { display:flex; flex-wrap:wrap; gap:14px; margin-bottom:10px; }
+      .vgc-speed-toggle-label { display:flex; align-items:center; gap:6px; font-size:0.78rem; color:var(--text-muted); cursor:pointer; }
       .vgc-badge { background:rgba(11,14,20,0.85); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:8px 12px; font-size:0.78rem; display:flex; align-items:center; gap:8px; }
       .vgc-badge-icon { font-size:1rem; }
       .vgc-cascade { animation: vgcCascadeIn .4s ease both; }
@@ -295,6 +303,7 @@
 
   window.vgcSwitchTeam = function (id) {
     activeTeamId = id;
+    speedTierState = { trickRoom: null, tailwind: null };
     scheduleSave();
     renderFormation();
     renderAnalysis();
@@ -697,9 +706,12 @@
     const analysis = engine.analyzeTeam(team.slots);
 
     if (analysis.filledCount === 0) {
+      lastTeamAnalysis = null;
       panel.innerHTML = `<p class="vgc-analysis-empty">Aggiungi almeno un Pokémon alla formazione per iniziare l'analisi.</p>`;
       return;
     }
+
+    lastTeamAnalysis = analysis;
 
     const weakEntries = Object.keys(analysis.weaknessCounts)
       .map(t => ({ type: t, count: analysis.weaknessCounts[t] }))
@@ -720,18 +732,6 @@
          <div class="vgc-chip-row">${recommendedTypes.map(t => `<span class="vgc-chip" style="--tc: var(--type-${t});">${(engine.TYPE_NAMES_ITA[t] || t).toUpperCase()}</span>`).join('')}</div>`
       : `<p class="vgc-analysis-empty">Copertura offensiva completa su tutti i tipi.</p>`;
 
-    const speedHtml = analysis.speedTiers.map((s, i) => `
-      <div class="vgc-speed-row ${analysis.tailwindActive ? 'vgc-speed-row-tw' : ''}">
-        <span class="vgc-speed-rank">#${i + 1}</span>
-        <span class="vgc-speed-name">${s.name}</span>
-        <span class="vgc-speed-value">${s.speed}</span>
-        ${analysis.tailwindActive ? `<span class="vgc-speed-tailwind">💨 ×2 → ${s.speedTailwind}</span>` : ''}
-      </div>
-    `).join('');
-    const speedTitle = analysis.tailwindActive
-      ? '💨 Speed Tier (Livello 50) — con Ventoincoda attivo'
-      : '💨 Speed Tier (Livello 50)';
-
     const badgesHtml = analysis.synergyBadges.length ? analysis.synergyBadges.map((b, i) =>
       `<div class="vgc-badge vgc-cascade" style="animation-delay:${i * 70}ms;"><span class="vgc-badge-icon">${b.icon}</span>${b.text}</div>`
     ).join('') : `<p class="vgc-analysis-empty">Nessuna sinergia da doppio rilevata ancora: prova ad aggiungere abilità meteo/terreno, Intimidazione, o mosse come Sonoqui, Polverabbia, Distortozona.</p>`;
@@ -746,8 +746,18 @@
         ${gapsHtml}
       </section>
       <section class="vgc-analysis-block">
-        <h3>${speedTitle}</h3>
-        <div class="vgc-speed-list">${speedHtml}</div>
+        <h3>💨 Fasce di Velocità (Livello 50)</h3>
+        <div class="vgc-speed-toggles">
+          <label class="vgc-speed-toggle-label">
+            <input type="checkbox" ${(speedTierState.trickRoom ?? analysis.trickRoomActive) ? 'checked' : ''} onchange="window.vgcToggleSpeedEffect('trickRoom', this.checked)">
+            🌀 Distortozona attiva
+          </label>
+          <label class="vgc-speed-toggle-label">
+            <input type="checkbox" ${(speedTierState.tailwind ?? analysis.tailwindActive) ? 'checked' : ''} onchange="window.vgcToggleSpeedEffect('tailwind', this.checked)">
+            💨 Ventoincoda attiva
+          </label>
+        </div>
+        <div id="vgc-speed-tier-list"></div>
       </section>
       <section class="vgc-analysis-block">
         <h3>🤝 Sinergie da Doppio</h3>
@@ -763,9 +773,44 @@
       </section>
     `;
 
+    renderSpeedTierSection(analysis);
     renderSuggestions(analysis, team);
     renderPairings(team);
   }
+
+  // Ridisegna solo la lista ordinabile delle fasce di velocità (non l'intero pannello analisi:
+  // evita di ri-eseguire renderSuggestions, che fa filtri sul dex, ad ogni click sui toggle).
+  function renderSpeedTierSection(analysis) {
+    const container = document.getElementById('vgc-speed-tier-list');
+    if (!container) return;
+
+    const trickRoom = speedTierState.trickRoom ?? analysis.trickRoomActive;
+    const tailwind = speedTierState.tailwind ?? analysis.tailwindActive;
+    const ordered = ENGINE().computeTurnOrder(analysis.speedTiers, { trickRoom, tailwind });
+
+    const rowsHtml = ordered.map((s, i) => `
+      <div class="vgc-speed-row ${tailwind ? 'vgc-speed-row-tw' : ''}">
+        <span class="vgc-speed-rank">#${i + 1}</span>
+        <span class="vgc-speed-name">${s.name}</span>
+        <span class="vgc-speed-value">${s.speed}</span>
+        ${tailwind ? `<span class="vgc-speed-tailwind">💨 ×2 → ${s.effectiveSpeed}</span>` : ''}
+      </div>
+    `).join('');
+
+    const hint = trickRoom
+      ? 'Distortozona è attiva: chi ha Velocità più bassa agisce per primo.'
+      : 'Ventoincoda raddoppia la Velocità di tutta la squadra allo stesso modo: non cambia l\'ordine reciproco, solo i numeri mostrati (utile contro minacce avversarie più lente, non modellate qui).';
+
+    container.innerHTML = `
+      <div class="vgc-speed-list">${rowsHtml}</div>
+      <p class="vgc-analysis-hint">${hint}</p>
+    `;
+  }
+
+  window.vgcToggleSpeedEffect = function (effect, checked) {
+    speedTierState[effect] = checked;
+    if (lastTeamAnalysis) renderSpeedTierSection(lastTeamAnalysis);
+  };
 
   function renderPairings(team) {
     const engine = ENGINE();

@@ -134,6 +134,7 @@
     const offensiveGaps = TYPES_CONFIG.map(t => t.id).filter(id => !offensiveCoverage.has(id));
 
     const tailwindActive = filled.some(slot => (slot.moves || []).some(m => m && m.name === 'Ventoincoda'));
+    const trickRoomActive = filled.some(slot => (slot.moves || []).some(m => m && m.name === 'Distortozona'));
 
     const speedTiers = filled.map(slot => {
       const speed = computeStatTotal((slot.statsBase || {}).speed, (slot.evs || {}).speed || 0, 'speed', slot.nature);
@@ -195,9 +196,27 @@
       speedTiers,
       avgSpeed,
       tailwindActive,
+      trickRoomActive,
       synergyBadges,
       filledCount: filled.length
     };
+  }
+
+  // Riordina speedTiers secondo lo stato scelto (non necessariamente quello reale della
+  // squadra, l'utente puo' simulare "cosa succede se..."). Ventoincoda raddoppia la Velocita'
+  // di TUTTI allo stesso modo: non cambia mai l'ordine relativo da solo (moltiplicatore
+  // uniforme), cambia solo i numeri mostrati — comportamento corretto qui perche' questo tool
+  // analizza una sola squadra, senza un avversario di cui modellare la velocita'. Distortozona
+  // inverte l'ordine (chi e' piu' lento agisce prima), con o senza Ventoincoda attivo.
+  function computeTurnOrder(speedTiers, opts) {
+    const trickRoom = !!(opts && opts.trickRoom);
+    const tailwind = !!(opts && opts.tailwind);
+    const withEffective = (speedTiers || []).map(s => ({
+      ...s,
+      effectiveSpeed: tailwind ? s.speed * 2 : s.speed
+    }));
+    withEffective.sort((a, b) => trickRoom ? a.effectiveSpeed - b.effectiveSpeed : b.effectiveSpeed - a.effectiveSpeed);
+    return withEffective;
   }
 
   // Versione del dex: incrementata una sola volta quando i tipi PokeAPI arrivano in modo
@@ -640,6 +659,8 @@
     calculateTypeMultipliers,
     computeStatTotal,
     analyzeTeam,
+    computeTurnOrder,
+    SPEED_BENCHMARK,
     suggestCandidates,
     recommendCoverageTypes,
     suggestPairings,
