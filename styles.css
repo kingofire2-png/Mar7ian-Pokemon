@@ -727,3 +727,40 @@ h1, h2, h3, .brand-title, .hero-title, .vgc-title {
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+/* Banner "Nuova versione disponibile" (service worker, vedi index.html) */
+.sw-update-banner {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  z-index: 10050;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 18px;
+  background-color: var(--panel-bg);
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  color: var(--text-main);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  animation: swBannerIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+@keyframes swBannerIn {
+  0% { opacity: 0; transform: translateX(-50%) translateY(16px); }
+  100% { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+.sw-update-banner button {
+  background: var(--accent);
+  border: none;
+  color: #04202e;
+  font-weight: 700;
+  font-size: 0.82rem;
+  padding: 6px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+}

@@ -56,6 +56,16 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// Non chiamiamo skipWaiting() in automatico (vedi commento sopra su install/activate): un
+// worker aggiornato resta "in attesa" finché la pagina non glielo chiede esplicitamente,
+// cliccando il banner "Nuova versione disponibile" (index.html). Questo e' l'unico modo in cui
+// un aggiornamento si attiva prima che l'utente chiuda e riapra l'app da solo.
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
 function isDataAsset(url) {
   return DATA_ASSETS.some((path) => url.pathname.endsWith(path.replace('./', '/')));
 }

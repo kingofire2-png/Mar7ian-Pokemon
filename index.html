@@ -130,11 +130,55 @@
 
   <!-- Service worker per supporto offline: registrato dopo il caricamento completo della
        pagina per non competere per banda con pokemon-moves.json (20MB), che è già l'asset
-       dominante al primo caricamento. -->
+       dominante al primo caricamento. Include il rilevamento di nuove versioni: un
+       aggiornamento non si attiva mai da solo (vedi sw.js), ma mostra un banner che lo attiva
+       su richiesta dell'utente. -->
   <script>
     if ('serviceWorker' in navigator) {
+      let refreshingAfterUpdate = false;
+
+      function showUpdateBanner(registration) {
+        if (document.getElementById('sw-update-banner')) return;
+        const banner = document.createElement('div');
+        banner.id = 'sw-update-banner';
+        banner.className = 'sw-update-banner';
+        banner.innerHTML = `
+          <span>🔄 Nuova versione disponibile</span>
+          <button type="button">Aggiorna</button>
+        `;
+        banner.querySelector('button').addEventListener('click', () => {
+          if (registration.waiting) {
+            registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+          }
+        });
+        document.body.appendChild(banner);
+      }
+
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (refreshingAfterUpdate) return;
+        refreshingAfterUpdate = true;
+        window.location.reload();
+      });
+
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').catch(err => console.error('SW registration failed:', err));
+        navigator.serviceWorker.register('./sw.js').then((registration) => {
+          // Un aggiornamento potrebbe essere già arrivato (installato in attesa) mentre
+          // questa pagina non era la prima ad aprirsi, o tra due caricamenti.
+          if (registration.waiting && navigator.serviceWorker.controller) {
+            showUpdateBanner(registration);
+          }
+          registration.addEventListener('updatefound', () => {
+            const newWorker = registration.installing;
+            if (!newWorker) return;
+            newWorker.addEventListener('statechange', () => {
+              // "installed" + un controller già esistente = aggiornamento vero, non la prima
+              // installazione in assoluto (dove non c'è ancora nulla da sostituire).
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                showUpdateBanner(registration);
+              }
+            });
+          });
+        }).catch(err => console.error('SW registration failed:', err));
       });
     }
   </script>
