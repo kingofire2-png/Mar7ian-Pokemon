@@ -443,10 +443,12 @@ function getPokemonMoves(name) {
       if (slot === 'A') {
         pokemonA = pokemonObj;
         itemA = '';
+        statsBonusA = { 'hp': 0, 'attack': 0, 'defense': 0, 'special-attack': 0, 'special-defense': 0, 'speed': 0 };
         await renderPokemonA();
       } else {
         pokemonB = pokemonObj;
         itemB = '';
+        statsBonusB = { 'hp': 0, 'attack': 0, 'defense': 0, 'special-attack': 0, 'special-defense': 0, 'speed': 0 };
         renderPokemonB();
       }
 
@@ -491,7 +493,7 @@ value="${m.name}"
 data-name="${m.name}"
 data-type="${m.type}"
 data-category="${m.category}"
-data-power="${m.power}"
+data-power="${m.power ?? 0}"
 data-accuracy="${m.accuracy}"
 data-pp="${m.pp}">
 [${typeLabelITA}] ${m.name}

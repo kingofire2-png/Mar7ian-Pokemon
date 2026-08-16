@@ -28,6 +28,8 @@
   // Formula di danno riusabile (livello 50) e applicazione effetti oggetto.
   // Esposte su window.CalcDanniEngine cosi' il 2vs2 usa la stessa identica matematica.
   // ===============================
+  const MIN_ROLL = 0.85;
+
   function computeDamage({ level, movePower, attackStat, defenseStat, isStab, typeMultiplier, extraDamageMult = 1, spreadMult = 1 }) {
     let bD = Math.floor(Math.floor((Math.floor((2 * level) / 5 + 2) * movePower * attackStat) / defenseStat) / 50) + 2;
     bD = Math.floor(bD * (isStab ? 1.5 : 1));
@@ -189,8 +191,6 @@
   function updateCategoryUI(category, power) {
     const powerEl = document.getElementById('move-power-val');
     if (powerEl) {
-      const catText = CATEGORY_TRANSLATIONS[category] || category;
-      const catColor = category === 'physical' ? '#f97316' : (category === 'special' ? '#3b82f6' : '#a855f7');
       powerEl.textContent = power > 0 ? power : "—";
     }
   }
@@ -245,8 +245,13 @@
       return;
     }
 
+    if (currentMoveCategory === 'status') {
+      alert("Questa mossa non infligge danno diretto (mossa di Stato): scegli una mossa Fisica o Speciale per calcolare il danno.");
+      return;
+    }
+
     const moveOpt = selectEl.options[selectEl.selectedIndex];
-    const movePower = parseInt(moveOpt?.getAttribute('data-power') || '0', 10);
+    const movePower = parseInt(moveOpt?.getAttribute('data-power') || '0', 10) || 0;
     const moveName = moveOpt?.getAttribute('data-name') || selectEl.value;
 
     const nameA = document.getElementById('box-a')?.querySelector('h3')?.textContent || 'Pokémon A';
@@ -306,14 +311,14 @@
     });
 
     const maxDamage = computeDamageWithAtk(attackStat);
-    const minDamage = Math.floor(maxDamage * 0.85);
+    const minDamage = Math.floor(maxDamage * MIN_ROLL);
 
     const minPercent = ((minDamage / hpB) * 100).toFixed(1);
     const maxPercent = ((maxDamage / hpB) * 100).toFixed(1);
 
     const isGuaranteedKO = minDamage >= hpB;
     const isPossibleKO = maxDamage >= hpB;
-    const hitsToKO = Math.ceil(hpB / maxDamage);
+    const hitsToKO = Math.max(1, Math.ceil(hpB / Math.max(1, maxDamage)));
 
     let statusText = "";
     if (isGuaranteedKO) {
@@ -336,7 +341,7 @@
             level, movePower: neededPower, attackStat, defenseStat, isStab, typeMultiplier,
             extraDamageMult: offense.damageMult
           });
-          if (Math.floor(bD * 0.85) >= hpB) break;
+          if (Math.floor(bD * MIN_ROLL) >= hpB) break;
           neededPower++;
         }
       }
@@ -451,7 +456,8 @@
     applyOffensiveItemEffects,
     applyDefensiveItemEffects,
     TYPE_ITA_TO_ENG,
-    CATEGORY_TRANSLATIONS
+    CATEGORY_TRANSLATIONS,
+    MIN_ROLL
   };
 
 })();

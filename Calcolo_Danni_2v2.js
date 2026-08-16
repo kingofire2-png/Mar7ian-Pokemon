@@ -539,7 +539,7 @@
       level: 50, movePower, attackStat: offense.stat, defenseStat: defense.stat,
       isStab, typeMultiplier, extraDamageMult: offense.damageMult, spreadMult
     });
-    const minDamage = Math.floor(maxDamage * 0.85);
+    const minDamage = Math.floor(maxDamage * engine.MIN_ROLL);
     const minPercent = ((minDamage / hpDefender) * 100).toFixed(1);
     const maxPercent = ((maxDamage / hpDefender) * 100).toFixed(1);
     const isGuaranteedKO = minDamage >= hpDefender;
