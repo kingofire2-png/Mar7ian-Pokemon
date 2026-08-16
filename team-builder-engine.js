@@ -389,8 +389,22 @@
 
   function profileSlot(slot) {
     const movepool = movepoolFor(slot.speciesName);
-    const hasMove = name => movepool.some(m => m.name === name);
-    const attackingMoves = movepool
+
+    // Le mosse REALMENTE scelte dal giocatore nell'editor squadra (slot.moves, fino a 4, null
+    // per gli slot ancora vuoti) sono la fonte di verita' per tag di sinergia e mosse
+    // consigliate: un Pokemon che PUO' imparare Distortozona ma a cui non e' stata assegnata
+    // non deve essere trattato come un setter di Trick Room per questo accoppiamento. Il
+    // movepool completo resta disponibile solo per suggerire mosse negli slot ancora vuoti
+    // (vedi suggestMoveset) e per capire cosa questo Pokemon potrebbe ancora imparare.
+    const chosenMoves = (slot.moves || [])
+      .filter(Boolean)
+      .map(m => ({ ...m, typeId: TYPE_ITA_TO_ID[(m.type || '').toLowerCase()] || null }));
+    const hasMove = name => chosenMoves.some(m => m.name === name);
+    const attackingMoves = chosenMoves
+      .filter(m => m.category === 'Fisico' || m.category === 'Speciale')
+      .filter(m => typeof m.power === 'number' && m.power > 0)
+      .sort((a, b) => b.power - a.power);
+    const movepoolAttackingMoves = movepool
       .filter(m => m.category === 'Fisico' || m.category === 'Speciale')
       .map(m => ({ ...m, typeId: TYPE_ITA_TO_ID[(m.type || '').toLowerCase()] || null }))
       .filter(m => typeof m.power === 'number' && m.power > 0)
@@ -414,7 +428,9 @@
     return {
       slot,
       movepool,
+      chosenMoves,
       attackingMoves,
+      movepoolAttackingMoves,
       hasMove,
       hasProtect: hasMove('Protezione'),
       speed: statFor(slot, 'speed'),
@@ -546,11 +562,23 @@
     return 'Difensivo/Bilanciato';
   }
 
-  // Sceglie fino a 4 mosse dal movepool reale del Pokemon, coerenti col ruolo assegnato per
-  // quell'accoppiamento. Non inventa mosse: usa solo cio' che il Pokemon puo' davvero imparare.
+  // Mostra prima di tutto le mosse che il giocatore ha GIA' scelto per questo Pokemon
+  // nell'editor squadra (non le rimpiazza mai): questa sezione consiglia con chi accoppiarlo,
+  // non un moveset alternativo. Solo gli slot che il giocatore non ha ancora assegnato vengono
+  // riempiti con un suggerimento coerente col ruolo, scelto dal movepool reale — mai mosse
+  // inventate.
   function suggestMoveset(profile, role) {
     const picked = [];
     const pickedNames = new Set();
+
+    profile.chosenMoves.forEach(m => {
+      if (picked.length >= 4 || pickedNames.has(m.name)) return;
+      picked.push(m);
+      pickedNames.add(m.name);
+    });
+
+    if (picked.length >= 4) return picked;
+
     const own = new Set((profile.slot.types || []));
 
     function add(nameOrMove) {
@@ -587,10 +615,10 @@
     // tipo solo perche' quel tipo ha le mosse piu' potenti in assoluto. Poi riempie col resto
     // (altre STAB o copertura) in ordine di potenza.
     own.forEach(typeId => {
-      const best = profile.attackingMoves.find(m => m.typeId === typeId && !pickedNames.has(m.name));
+      const best = profile.movepoolAttackingMoves.find(m => m.typeId === typeId && !pickedNames.has(m.name));
       if (best) add(best);
     });
-    for (const m of profile.attackingMoves) { if (picked.length >= 4) break; add(m); }
+    for (const m of profile.movepoolAttackingMoves) { if (picked.length >= 4) break; add(m); }
 
     // Se il movepool e' minuscolo (es. Ditto, Metapod), restituisce solo cio' che esiste davvero.
     for (const m of profile.movepool) { if (picked.length >= 4) break; add(m); }

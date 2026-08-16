@@ -925,5 +925,13 @@
       loadDexWithTypes(),
       loadItemNames()
     ]);
+
+    // Il primo render sopra puo' essere andato in scena prima che pokemon-moves.json (20MB)
+    // finisse di caricare: in quel caso i menu mosse e i suggerimenti di Accoppiamenti in
+    // Doppio (che riempiono gli slot ancora vuoti dal movepool reale) restano incompleti e
+    // nessuno li ridisegna da soli. Un secondo render qui, ora che i dati sono pronti, li
+    // aggiorna senza bisogno che l'utente faccia un'azione qualunque per "sbloccarli".
+    renderFormation();
+    renderAnalysis();
   });
 })();
