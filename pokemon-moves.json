@@ -185272,6 +185272,10 @@
           {
             "method": "tm",
             "value": "MT178"
+          },
+          {
+            "method": "egg",
+            "value": null
           }
         ]
       },
@@ -185877,6 +185881,51 @@
           {
             "method": "tm",
             "value": "MT052"
+          }
+        ]
+      },
+      {
+        "name": "Movimento Sismico",
+        "slug": "Movimento Sismico",
+        "type": "Lotta",
+        "category": "Fisico",
+        "power": null,
+        "accuracy": 100,
+        "pp": 20,
+        "methods": [
+          {
+            "method": "egg",
+            "value": null
+          }
+        ]
+      },
+      {
+        "name": "Regalino",
+        "slug": "Regalino",
+        "type": "Normale",
+        "category": "Fisico",
+        "power": null,
+        "accuracy": 90,
+        "pp": 15,
+        "methods": [
+          {
+            "method": "egg",
+            "value": null
+          }
+        ]
+      },
+      {
+        "name": "Rintoccasana",
+        "slug": "Rintoccasana",
+        "type": "Normale",
+        "category": "Stato",
+        "power": null,
+        "accuracy": "—",
+        "pp": 5,
+        "methods": [
+          {
+            "method": "egg",
+            "value": null
           }
         ]
       }
