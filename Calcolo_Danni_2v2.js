@@ -34,6 +34,14 @@
   let dexList = [];
   let initialized = false;
 
+  // Condizioni di campo: meteo/terreno sono globali (influenzano entrambi i lati), gli schermi
+  // sono per lato (chi li ha piazzati protegge se stesso), bruciatura/critico sono per singolo
+  // Pokemon alleato (salvati sullo slot stesso, vedi assignSlot) dato che sono uno stato del
+  // singolo attaccante, non del campo.
+  let fieldWeather = '';
+  let fieldTerrain = '';
+  let screensOpp = { reflect: false, lightscreen: false, auroraveil: false };
+
   function emptyEvs() {
     return { hp: 0, attack: 0, defense: 0, 'special-attack': 0, 'special-defense': 0, speed: 0 };
   }
@@ -92,6 +100,30 @@
           <label style="font-size:0.75rem; color:var(--text-muted); display:flex; align-items:center; gap:6px; cursor:pointer;">
             <input type="checkbox" id="dv-tailwind-ally"> 💨 Ventoincoda attivo lato Alleati (raddoppia la Velocità)
           </label>
+        </div>
+        <div style="display:flex; flex-wrap:wrap; justify-content:center; gap:16px; margin-bottom:14px;">
+          <label style="font-size:0.72rem; color:var(--text-muted); font-weight:700; display:flex; align-items:center; gap:6px;">METEO
+            <select id="dv-field-weather" onchange="window.Calc2v2.updateFieldWeather(this.value)" style="background:var(--bg-dark); border:1px solid var(--border-color); color:#fff; padding:5px; border-radius:6px; font-size:0.72rem;">
+              <option value="">Nessuno</option>
+              <option value="rain">Pioggia</option>
+              <option value="sun">Sole</option>
+            </select>
+          </label>
+          <label style="font-size:0.72rem; color:var(--text-muted); font-weight:700; display:flex; align-items:center; gap:6px;">TERRENO
+            <select id="dv-field-terrain" onchange="window.Calc2v2.updateFieldTerrain(this.value)" style="background:var(--bg-dark); border:1px solid var(--border-color); color:#fff; padding:5px; border-radius:6px; font-size:0.72rem;">
+              <option value="">Nessuno</option>
+              <option value="grassy">Erboso</option>
+              <option value="electric">Elettrico</option>
+              <option value="psychic">Psichico</option>
+              <option value="misty">Fatato</option>
+            </select>
+          </label>
+        </div>
+        <div style="display:flex; flex-wrap:wrap; justify-content:center; gap:14px; margin-bottom:14px; font-size:0.72rem; color:var(--text-muted);">
+          <span style="font-weight:700;">SCHERMI LATO AVVERSARI:</span>
+          <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" onchange="window.Calc2v2.updateScreenOpp('reflect', this.checked)"> 🛡️ Riflesso</label>
+          <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" onchange="window.Calc2v2.updateScreenOpp('lightscreen', this.checked)"> 🛡️ Schermoluce</label>
+          <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" onchange="window.Calc2v2.updateScreenOpp('auroraveil', this.checked)"> 🛡️ Velo Aurora</label>
         </div>
         <button id="dv-calculate-btn" onclick="window.Calc2v2.calculate()" style="width: 100%; padding: 12px; background: linear-gradient(135deg, var(--accent), #0284c7); border: none; border-radius: 8px; color: #04202e; font-weight: 800; font-size: 1rem; cursor: pointer;">⚡ CALCOLA DANNO</button>
       </div>
@@ -271,6 +303,10 @@
           </select>
         </label>
         ${buildTargetBlockHtml(key, slot)}
+        <div style="display:flex; gap:10px; margin-bottom:8px; font-size:0.62rem; color:var(--text-muted);">
+          <label style="display:flex; align-items:center; gap:4px; cursor:pointer;"><input type="checkbox" ${slot.isBurned ? 'checked' : ''} onchange="window.Calc2v2.updateBurn('${key}', this.checked)"> 🔥 Bruciato</label>
+          <label style="display:flex; align-items:center; gap:4px; cursor:pointer;"><input type="checkbox" ${slot.isCrit ? 'checked' : ''} onchange="window.Calc2v2.updateCrit('${key}', this.checked)"> ✨ Critico</label>
+        </div>
         ` : ''}
         ${buildStageAdjustorHtml(key, slot)}
         <div style="display:flex; flex-direction:column; gap:3px;">${evRowsHtml}</div>
@@ -396,7 +432,9 @@
         statStages: emptyStages(),
         selectedMove: '',
         selectedTarget: '',
-        appliedBoost: null
+        appliedBoost: null,
+        isBurned: false,
+        isCrit: false
       };
       renderSlotCard(key);
     } catch (e) {
@@ -440,6 +478,17 @@
     if (!slots[key]) return;
     slots[key].statStages[statKey] = clampStage((slots[key].statStages[statKey] || 0) + delta);
     renderSlotCard(key);
+  };
+
+  window.Calc2v2.updateFieldWeather = function (value) { fieldWeather = value; };
+  window.Calc2v2.updateFieldTerrain = function (value) { fieldTerrain = value; };
+  window.Calc2v2.updateScreenOpp = function (key, checked) { screensOpp[key] = checked; };
+
+  window.Calc2v2.updateBurn = function (key, checked) {
+    if (slots[key]) slots[key].isBurned = checked;
+  };
+  window.Calc2v2.updateCrit = function (key, checked) {
+    if (slots[key]) slots[key].isCrit = checked;
   };
 
   window.Calc2v2.updateEv = function (key, statKey, value) {
@@ -504,7 +553,7 @@
   // ===============================
   // Calcolo di un singolo colpo (riusa window.CalcDanniEngine, come nella versione precedente)
   // ===============================
-  function computeSingleHit(action, oppKey, spreadMult, category) {
+  function computeSingleHit(action, oppKey, spreadMult, category, hpBeforeHit) {
     const attacker = action.slot;
     const defender = slots[oppKey];
     const engine = window.CalcDanniEngine;
@@ -531,18 +580,40 @@
       itemSlug: attacker.item, category, moveType, typeMultiplier, baseStat: baseAttackStat
     });
     const defense = engine.applyDefensiveItemEffects({
-      itemSlug: defender.item, category, baseStat: baseDefenseStat
+      itemSlug: defender.item, category, baseStat: baseDefenseStat, moveType
     });
+    // Aerostato: azzera il moltiplicatore di tipo se la mossa e' di tipo Terra, indipendentemente
+    // da cosa direbbe la tabella tipi.
+    if (defense.groundImmune) typeMultiplier = 0;
     const itemLabels = [...offense.labels, ...defense.labels];
+
+    // Meteo/terreno sono globali; bruciatura/critico sono per singolo attaccante (salvati sullo
+    // slot); gli schermi qui riguardano sempre il lato Avversari perche' in questo motore
+    // l'attaccante e' sempre un alleato e il difensore un avversario (vedi calculate()).
+    const weatherMult = engine.weatherMultiplierFor(fieldWeather, moveType);
+    const terrainMult = engine.terrainMultiplierFor(fieldTerrain, moveType);
+    const critMult = attacker.isCrit ? 1.5 : 1;
+    const burnMult = (attacker.isBurned && category === 'physical') ? 0.5 : 1;
+    const screenActive = category === 'physical'
+      ? (screensOpp.reflect || screensOpp.auroraveil)
+      : (screensOpp.lightscreen || screensOpp.auroraveil);
+    const screenMult = screenActive ? 0.5 : 1;
 
     const maxDamage = engine.computeDamage({
       level: 50, movePower, attackStat: offense.stat, defenseStat: defense.stat,
-      isStab, typeMultiplier, extraDamageMult: offense.damageMult, spreadMult
+      isStab, typeMultiplier, extraDamageMult: offense.damageMult, spreadMult,
+      weatherMult, terrainMult, critMult, burnMult, screenMult
     });
     const minDamage = Math.floor(maxDamage * engine.MIN_ROLL);
     const minPercent = ((minDamage / hpDefender) * 100).toFixed(1);
     const maxPercent = ((maxDamage / hpDefender) * 100).toFixed(1);
-    const isGuaranteedKO = minDamage >= hpDefender;
+
+    const sashCheck = engine.checkFocusSashSurvival({
+      itemSlug: defender.item, hpBeforeHit: hpBeforeHit != null ? hpBeforeHit : hpDefender, hpMax: hpDefender, damage: minDamage
+    });
+    if (sashCheck.saved) itemLabels.push(sashCheck.label);
+
+    const isGuaranteedKO = minDamage >= hpDefender && !sashCheck.saved;
     const isPossibleKO = maxDamage >= hpDefender;
     const hitsToKO = Math.max(1, Math.ceil(hpDefender / Math.max(1, maxDamage)));
 
@@ -554,7 +625,7 @@
     return {
       targetKey: oppKey, targetName: defender.name,
       minDamage, maxDamage, hpDefender, minPercent, maxPercent,
-      isGuaranteedKO, isPossibleKO, hitsToKO,
+      isGuaranteedKO, isPossibleKO, hitsToKO, sashSaved: sashCheck.saved,
       effectivenessText, isStab, itemLabels
     };
   }
@@ -621,7 +692,7 @@
       const spreadMult = (isSpread && hitCountForSpread > 1) ? 0.75 : 1;
 
       const hits = targetKeys.map(oppKey => {
-        const hit = computeSingleHit(action, oppKey, spreadMult, category);
+        const hit = computeSingleHit(action, oppKey, spreadMult, category, remainingHp[oppKey]);
         hit.hpBeforePct = (remainingHp[oppKey] / hit.hpDefender) * 100;
         remainingHp[oppKey] = Math.max(0, remainingHp[oppKey] - hit.maxDamage);
         hit.hpAfterPct = (remainingHp[oppKey] / hit.hpDefender) * 100;
@@ -675,7 +746,8 @@
       // type === 'damage'
       const hitsHtml = entry.hits.map(hit => {
         let statusText = '';
-        if (hit.isGuaranteedKO) statusText = `<span style="color:#ef4444; font-weight:800;">KO GARANTITO (${hit.maxPercent}%)</span>`;
+        if (hit.sashSaved) statusText = `<span style="color:#f59e0b; font-weight:800;">SOPRAVVIVE A 1 PS (Focus Sash)</span>`;
+        else if (hit.isGuaranteedKO) statusText = `<span style="color:#ef4444; font-weight:800;">KO GARANTITO (${hit.maxPercent}%)</span>`;
         else if (hit.isPossibleKO) statusText = `<span style="color:#f59e0b; font-weight:800;">POSSIBILE KO (${hit.minPercent}% - ${hit.maxPercent}%)</span>`;
         else statusText = `<span style="color:#84cc16; font-weight:800;">NON MANDA KO (KO in ${hit.hitsToKO} colpi)</span>`;
 

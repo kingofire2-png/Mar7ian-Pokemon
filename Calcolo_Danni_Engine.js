@@ -38,14 +38,46 @@
 
   // Ordine canonico dei moltiplicatori (come Pokemon Showdown/Bulbapedia): bersagli multipli
   // (Doppio) prima di STAB/tipo/oggetto. Ininfluente sull'1vs1 (spreadMult sempre 1 li'), ma
-  // corregge scostamenti di arrotondamento nel 2vs2 con mosse ad area.
-  function computeDamage({ level, movePower, attackStat, defenseStat, isStab, typeMultiplier, extraDamageMult = 1, spreadMult = 1 }) {
+  // corregge scostamenti di arrotondamento nel 2vs2 con mosse ad area. weatherMult/terrainMult/
+  // critMult/burnMult/screenMult sono opzionali (default neutro 1) e vanno nello stesso punto
+  // della sequenza occupato dai corrispondenti moltiplicatori nel gioco reale.
+  function computeDamage({
+    level, movePower, attackStat, defenseStat, isStab, typeMultiplier, extraDamageMult = 1,
+    spreadMult = 1, weatherMult = 1, terrainMult = 1, critMult = 1, burnMult = 1, screenMult = 1
+  }) {
     let bD = Math.floor(Math.floor((Math.floor((2 * level) / 5 + 2) * movePower * attackStat) / defenseStat) / 50) + 2;
     bD = Math.floor(bD * spreadMult);
+    bD = Math.floor(bD * weatherMult);
+    bD = Math.floor(bD * terrainMult);
+    bD = Math.floor(bD * critMult);
     bD = Math.floor(bD * (isStab ? 1.5 : 1));
     bD = Math.floor(bD * typeMultiplier);
+    bD = Math.floor(bD * burnMult);
+    bD = Math.floor(bD * screenMult);
     bD = Math.floor(bD * extraDamageMult);
     return bD;
+  }
+
+  // Meteo/Terreno: moltiplicatore sul tipo della mossa (Pioggia/Sole sui tipi Acqua/Fuoco,
+  // i 4 terreni sui rispettivi tipi corrispondenti, +30% invece di +50% per il terreno).
+  // Semplificazione dichiarata: non modella Levitazione/tipo Volante (immunita' al terreno) ne'
+  // abilita' che annullano meteo/terreno (es. Nove Vite) — coerente con lo stile "niente IV,
+  // niente stato di gioco multi-turno" gia' usato nel resto del calcolatore.
+  const WEATHER_TYPE_MULT = {
+    rain: { water: 1.5, fire: 0.5 },
+    sun: { fire: 1.5, water: 0.5 }
+  };
+  const TERRAIN_TYPE_MULT = {
+    grassy: { grass: 1.3 },
+    electric: { electric: 1.3 },
+    psychic: { psychic: 1.3 },
+    misty: { fairy: 1.3 }
+  };
+  function weatherMultiplierFor(weatherKey, moveType) {
+    return (WEATHER_TYPE_MULT[weatherKey] && WEATHER_TYPE_MULT[weatherKey][moveType]) || 1;
+  }
+  function terrainMultiplierFor(terrainKey, moveType) {
+    return (TERRAIN_TYPE_MULT[terrainKey] && TERRAIN_TYPE_MULT[terrainKey][moveType]) || 1;
   }
 
   // Effetti oggetto lato attaccante: puo' modificare la statistica offensiva (Bendascelta/
@@ -85,14 +117,22 @@
     return result;
   }
 
-  // Effetti oggetto lato difensore: solo statistica difensiva (Corpetto Assalto, Evolcondensa).
-  function applyDefensiveItemEffects({ itemSlug, category, baseStat }) {
+  // Effetti oggetto lato difensore: statistica difensiva (Corpetto Assalto, Evolcondensa) e/o
+  // immunita' di tipo (Aerostato: immune a mosse di tipo Terra finche' lo tiene equipaggiato).
+  function applyDefensiveItemEffects({ itemSlug, category, baseStat, moveType }) {
     const effects = window.SharedData.ITEM_EFFECTS;
     const effect = itemSlug && effects[itemSlug];
-    const result = { stat: baseStat, labels: [] };
-    if (!effect || !effect.statMult) return result;
+    const result = { stat: baseStat, labels: [], groundImmune: false };
+    if (!effect) return result;
 
     const itemName = window.SharedData.getItemName(itemSlug);
+
+    if (effect.groundImmune && moveType === 'ground') {
+      result.groundImmune = true;
+      result.labels.push(`${itemName}: immune alle mosse di tipo Terra`);
+    }
+    if (!effect.statMult) return result;
+
     const statKey = category === 'physical' ? 'defense' : 'special-defense';
     const statLabel = category === 'physical' ? 'Difesa' : 'Dif. Sp.';
 
@@ -101,6 +141,17 @@
       result.labels.push(`${itemName}: ${statLabel} ×${effect.statMult[statKey]}`);
     }
     return result;
+  }
+
+  // Focus Sash non cambia il danno calcolato: fa sopravvivere a 1 PS un colpo altrimenti letale
+  // se il difensore era a PS pieni. Non e' un moltiplicatore quindi va controllato a parte dai
+  // chiamanti dopo aver calcolato il danno, non dentro computeDamage.
+  function checkFocusSashSurvival({ itemSlug, hpBeforeHit, hpMax, damage }) {
+    const effect = itemSlug && window.SharedData.ITEM_EFFECTS[itemSlug];
+    if (!effect || !effect.surviveAtOne) return { saved: false };
+    if (hpBeforeHit < hpMax) return { saved: false };
+    if (damage < hpMax) return { saved: false };
+    return { saved: true, label: `${window.SharedData.getItemName(itemSlug)}: sopravvive a 1 PS` };
   }
 
   document.addEventListener('DOMContentLoaded', () => {
@@ -299,15 +350,31 @@
       typeMultiplier, baseStat: attackStat
     });
     const defense = applyDefensiveItemEffects({
-      itemSlug: itemSlugB, category: currentMoveCategory, baseStat: defenseStat
+      itemSlug: itemSlugB, category: currentMoveCategory, baseStat: defenseStat, moveType: currentMoveType
     });
     attackStat = offense.stat;
     defenseStat = defense.stat;
+    // Aerostato annulla del tutto il moltiplicatore di tipo se la mossa e' di tipo Terra,
+    // indipendentemente da cosa direbbe la tabella tipi normale.
+    if (defense.groundImmune) typeMultiplier = 0;
     const itemLabels = [...offense.labels, ...defense.labels];
+
+    // Condizioni di campo/stato scelte dall'utente (Calcolo_Danni.js): meteo/terreno globali,
+    // bruciatura/critico sull'attaccante A, schermi sul difensore B.
+    const field = (window.getCalc1v1FieldConditions && window.getCalc1v1FieldConditions()) || {};
+    const weatherMult = weatherMultiplierFor(field.weather, currentMoveType);
+    const terrainMult = terrainMultiplierFor(field.terrain, currentMoveType);
+    const critMult = field.isCritA ? 1.5 : 1;
+    const burnMult = (field.isBurnedA && currentMoveCategory === 'physical') ? 0.5 : 1;
+    const screens = field.screensB || {};
+    const screenActive = currentMoveCategory === 'physical'
+      ? (screens.reflect || screens.auroraveil)
+      : (screens.lightscreen || screens.auroraveil);
+    const screenMult = screenActive ? 0.5 : 1;
 
     const computeDamageWithAtk = (atk) => computeDamage({
       level, movePower, attackStat: atk, defenseStat, isStab, typeMultiplier,
-      extraDamageMult: offense.damageMult
+      extraDamageMult: offense.damageMult, weatherMult, terrainMult, critMult, burnMult, screenMult
     });
 
     const maxDamage = computeDamageWithAtk(attackStat);
@@ -316,12 +383,19 @@
     const minPercent = ((minDamage / hpB) * 100).toFixed(1);
     const maxPercent = ((maxDamage / hpB) * 100).toFixed(1);
 
-    const isGuaranteedKO = minDamage >= hpB;
+    // Focus Sash: sopravvive a 1 PS se il difensore era a PS pieni (assunzione base di questo
+    // calcolatore: il difensore parte sempre a PS pieni) e il colpo sarebbe altrimenti KO.
+    const sashCheck = checkFocusSashSurvival({ itemSlug: itemSlugB, hpBeforeHit: hpB, hpMax: hpB, damage: minDamage });
+    if (sashCheck.saved) itemLabels.push(sashCheck.label);
+
+    const isGuaranteedKO = minDamage >= hpB && !sashCheck.saved;
     const isPossibleKO = maxDamage >= hpB;
     const hitsToKO = Math.max(1, Math.ceil(hpB / Math.max(1, maxDamage)));
 
     let statusText = "";
-    if (isGuaranteedKO) {
+    if (sashCheck.saved) {
+      statusText = `<span style="color: #f59e0b; font-weight: 800;">SOPRAVVIVE A 1 PS (Focus Sash) — sarebbe stato KO garantito (${maxPercent}%)</span>`;
+    } else if (isGuaranteedKO) {
       statusText = `<span style="color: #ef4444; font-weight: 800;">KO GARANTITO IN 1 COLPO (${maxPercent}%)</span>`;
     } else if (isPossibleKO) {
       statusText = `<span style="color: #f59e0b; font-weight: 800;">POSSIBILE KO IN 1 COLPO (${minPercent}% - ${maxPercent}%)</span>`;
@@ -455,6 +529,9 @@
     computeDamage,
     applyOffensiveItemEffects,
     applyDefensiveItemEffects,
+    checkFocusSashSurvival,
+    weatherMultiplierFor,
+    terrainMultiplierFor,
     TYPE_ITA_TO_ENG,
     CATEGORY_TRANSLATIONS,
     MIN_ROLL,

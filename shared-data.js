@@ -297,7 +297,16 @@
     'black-glasses': { typeBoost: 'dark', mult: 1.2 },
     'metal-coat': { typeBoost: 'steel', mult: 1.2 },
     'silk-scarf': { typeBoost: 'normal', mult: 1.2 },
-    'pixie-plate': { typeBoost: 'fairy', mult: 1.2 }
+    'pixie-plate': { typeBoost: 'fairy', mult: 1.2 },
+    // groundImmune/surviveAtOne non sono moltiplicatori di danno: sono letti a parte dal motore
+    // di calcolo (Calcolo_Danni_Engine.js) perche' cambiano il tipo di risultato mostrato
+    // (immunita' di tipo / nota di sopravvivenza) invece del numero di danno stesso.
+    'air-balloon': { groundImmune: true },
+    'focus-sash': { surviveAtOne: true }
+    // weakness-policy e rocky-helmet volutamente esclusi: modellano un effetto reattivo sul
+    // turno successivo (boost di statistica dopo essere colpiti, contraccolpo sull'attaccante)
+    // che questo calcolatore a singolo colpo non simula — aggiungerli come falso moltiplicatore
+    // di danno sarebbe fuorviante.
   };
 
   let itemNameCache = {};

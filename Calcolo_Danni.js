@@ -71,6 +71,26 @@ function getPokemonMoves(name) {
   let statStagesA = emptyStages();
   let statStagesB = emptyStages();
 
+  // Condizioni di campo/stato lette dal motore di calcolo (Calcolo_Danni_Engine.js) tramite
+  // window.getCalc1v1FieldConditions: meteo/terreno sono globali, bruciatura/critico riguardano
+  // l'attaccante (A), gli schermi riguardano il difensore (B) — stessa asimmetria attaccante/
+  // difensore gia' usata per gli oggetti equipaggiati.
+  let fieldWeather = '';
+  let fieldTerrain = '';
+  let isBurnedA = false;
+  let isCritA = false;
+  let screensB = { reflect: false, lightscreen: false, auroraveil: false };
+
+  window.getCalc1v1FieldConditions = function () {
+    return { weather: fieldWeather, terrain: fieldTerrain, isBurnedA, isCritA, screensB };
+  };
+
+  window.updateFieldWeather = function (value) { fieldWeather = value; };
+  window.updateFieldTerrain = function (value) { fieldTerrain = value; };
+  window.updateBurnA = function (checked) { isBurnedA = checked; };
+  window.updateCritA = function (checked) { isCritA = checked; };
+  window.updateScreenB = function (key, checked) { screensB[key] = checked; };
+
   // Stato completo di uno slot (Pokemon + EV + Natura + fasi + oggetto), letto da
   // Calcolo_Danni_Engine.js al posto dello scraping del DOM: stessa fonte di dati usata per
   // disegnare i box A/B, quindi Natura/fasi statistiche non vengono piu' ignorate nel calcolo.
@@ -272,6 +292,25 @@ function getPokemonMoves(name) {
           <button id="btn-target-b" style="padding: 10px 20px; border-radius: 8px; font-weight: 700; cursor: pointer; border: 2px solid rgba(255,255,255,0.12); background: rgba(24,32,48,0.5); backdrop-filter: blur(8px); color: #fff;">
             Target: Pokémon B (Difensore)
           </button>
+        </div>
+
+        <div style="display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; margin-bottom: 24px; background: rgba(18,24,36,0.45); border: 1px solid rgba(255,255,255,0.08); border-radius: var(--radius-lg); padding: 14px 20px;">
+          <label style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700; display: flex; align-items: center; gap: 6px;">METEO
+            <select onchange="window.updateFieldWeather(this.value)" style="background: var(--bg-dark); border: 1px solid var(--border-color); color: #fff; padding: 6px; border-radius: 6px; font-size: 0.8rem;">
+              <option value="">Nessuno</option>
+              <option value="rain">Pioggia (Acqua ×1.5 / Fuoco ×0.5)</option>
+              <option value="sun">Sole (Fuoco ×1.5 / Acqua ×0.5)</option>
+            </select>
+          </label>
+          <label style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700; display: flex; align-items: center; gap: 6px;">TERRENO
+            <select onchange="window.updateFieldTerrain(this.value)" style="background: var(--bg-dark); border: 1px solid var(--border-color); color: #fff; padding: 6px; border-radius: 6px; font-size: 0.8rem;">
+              <option value="">Nessuno</option>
+              <option value="grassy">Erboso (Erba ×1.3)</option>
+              <option value="electric">Elettrico (Elettro ×1.3)</option>
+              <option value="psychic">Psichico (Psico ×1.3)</option>
+              <option value="misty">Fatato (Folletto ×1.3)</option>
+            </select>
+          </label>
         </div>
 
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-bottom: 32px;">
@@ -690,6 +729,15 @@ data-pp="${m.pp}">
 
       ${buildStageAdjustorHtml('A', statStagesA)}
 
+      <div style="display: flex; gap: 14px; margin-bottom: 12px; font-size: 0.75rem; color: var(--text-muted);">
+        <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+          <input type="checkbox" ${isBurnedA ? 'checked' : ''} onchange="window.updateBurnA(this.checked)"> 🔥 Bruciato (dimezza danno Fisico)
+        </label>
+        <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+          <input type="checkbox" ${isCritA ? 'checked' : ''} onchange="window.updateCritA(this.checked)"> ✨ Colpo critico (×1.5)
+        </label>
+      </div>
+
       <div style="font-size: 0.75rem; font-weight: 700; color: var(--accent); margin-bottom: 8px;">STATISTICHE (BASE + EV 0-32 + NATURA + FASI)</div>
       <div>${statsHtml}</div>
     `;
@@ -747,6 +795,18 @@ data-pp="${m.pp}">
       </div>
 
       ${buildStageAdjustorHtml('B', statStagesB)}
+
+      <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; font-size: 0.72rem; color: var(--text-muted);">
+        <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+          <input type="checkbox" ${screensB.reflect ? 'checked' : ''} onchange="window.updateScreenB('reflect', this.checked)"> 🛡️ Riflesso
+        </label>
+        <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+          <input type="checkbox" ${screensB.lightscreen ? 'checked' : ''} onchange="window.updateScreenB('lightscreen', this.checked)"> 🛡️ Schermoluce
+        </label>
+        <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+          <input type="checkbox" ${screensB.auroraveil ? 'checked' : ''} onchange="window.updateScreenB('auroraveil', this.checked)"> 🛡️ Velo Aurora
+        </label>
+      </div>
 
       <div style="font-size: 0.75rem; font-weight: 700; color: var(--violet); margin-bottom: 8px;">STATISTICHE (BASE + EV 0-32 + NATURA + FASI)</div>
       <div>${statsHtml}</div>
