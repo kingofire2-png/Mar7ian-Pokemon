@@ -229,6 +229,13 @@
       .vgc-moves-header { font-size:0.8rem; font-weight:700; color:var(--accent); margin-bottom:10px; }
       .vgc-moves-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:10px; }
       .vgc-move-select { background:var(--bg-dark); border:1px solid var(--border-color); color:#fff; padding:8px; border-radius:8px; font-size:0.78rem; width:100%; }
+      .vgc-move-slot { display:flex; flex-direction:column; gap:6px; }
+      .vgc-move-search-wrap { position:relative; }
+      .vgc-move-search { width:100%; background:var(--bg-dark); border:1px solid var(--border-color); border-radius:8px; padding:7px 8px; color:#fff; font-size:0.72rem; box-sizing:border-box; }
+      .vgc-move-search-results { display:none; position:absolute; top:100%; left:0; right:0; margin-top:2px; max-height:180px; overflow-y:auto; background:var(--panel-bg); border:1px solid var(--border-color); border-radius:8px; z-index:5; }
+      .vgc-move-search-result-item { padding:7px 8px; font-size:0.72rem; color:var(--violet); cursor:pointer; border-bottom:1px solid var(--border-color); }
+      .vgc-move-search-result-item:last-child { border-bottom:none; }
+      .vgc-move-search-result-item:hover { background:var(--card-hover); }
 
       .vgc-analysis-panel { display:flex; flex-direction:column; gap:20px; }
       .vgc-analysis-block { background-image: var(--glass-sheen); background-color:rgba(18,24,36,0.85); border:1px solid rgba(255,255,255,0.08); box-shadow: 0 8px 24px rgba(0,0,0,0.3), inset 0 1px 0 var(--glass-highlight); border-radius:var(--radius-lg); padding:18px 20px; }
@@ -578,7 +585,18 @@
         optionsHtml += `</optgroup>`;
       }
       const emptyOptionsMsg = movesDetailed.length === 0 ? `<option value="">Nessuna mossa trovata nel DB</option>` : `<option value="">— Mossa ${i + 1} —</option>${optionsHtml}`;
-      return `<select class="vgc-move-select" onchange="window.vgcUpdateMove(${editingSlotIndex}, ${i}, this.value)">${emptyOptionsMsg}</select>`;
+      // Barra di ricerca sopra il menu a tendina: se si sa già che mossa assegnare, digitarne
+      // il nome e cliccare il risultato evita di scorrere l'elenco (che può avere decine di
+      // voci raggruppate per tipo). Il menu a tendina resta comunque utilizzabile da solo.
+      return `
+        <div class="vgc-move-slot">
+          <div class="vgc-move-search-wrap">
+            <input type="text" class="vgc-move-search" id="vgc-move-search-${i}" placeholder="🔍 Cerca mossa...">
+            <div class="vgc-move-search-results" id="vgc-move-search-results-${i}"></div>
+          </div>
+          <select class="vgc-move-select" id="vgc-move-select-${i}" onchange="window.vgcUpdateMove(${editingSlotIndex}, ${i}, this.value)">${emptyOptionsMsg}</select>
+        </div>
+      `;
     }).join('');
 
     const typesHtml = slot.types.map(t => `<span class="vgc-type-chip" style="--tc: var(--type-${t});">${(engine.TYPE_NAMES_ITA[t] || t).toUpperCase()}</span>`).join('');
@@ -605,6 +623,44 @@
       <div class="vgc-moves-header">Mosse</div>
       <div class="vgc-moves-grid">${moveSelectsHtml}</div>
     `;
+
+    initMoveSearchBoxes(movesDetailed);
+  }
+
+  // Ricerca dal vivo per ciascuno dei 4 slot mossa: filtra movesDetailed (il movepool reale
+  // già caricato, nessun nuovo fetch) e assegna cliccando un risultato, stesso pattern già
+  // usato per la ricerca oggetti (Calcolo_Danni_2v2.js initItemSearch).
+  function initMoveSearchBoxes(movesDetailed) {
+    [0, 1, 2, 3].forEach(i => {
+      const input = document.getElementById(`vgc-move-search-${i}`);
+      const results = document.getElementById(`vgc-move-search-results-${i}`);
+      const select = document.getElementById(`vgc-move-select-${i}`);
+      if (!input || !results || !select) return;
+
+      input.oninput = function () {
+        const text = this.value.trim().toLowerCase();
+        results.innerHTML = '';
+        if (!text) { results.style.display = 'none'; return; }
+
+        const found = movesDetailed.filter(m => m.name.toLowerCase().includes(text)).slice(0, 20);
+        if (!found.length) { results.style.display = 'none'; return; }
+        results.style.display = 'block';
+
+        found.forEach(m => {
+          const item = document.createElement('div');
+          item.className = 'vgc-move-search-result-item';
+          item.textContent = `[${m.type}] ${m.name}`;
+          item.onclick = () => {
+            select.value = m.name;
+            window.vgcUpdateMove(editingSlotIndex, i, m.name);
+            input.value = '';
+            results.style.display = 'none';
+            results.innerHTML = '';
+          };
+          results.appendChild(item);
+        });
+      };
+    });
   }
 
   // Aggiorna solo il totale/la barra della stat modificata e il contatore EV totale, senza

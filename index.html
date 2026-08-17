@@ -178,6 +178,16 @@
               }
             });
           });
+
+          // Il browser controlla da solo se c'è un sw.js più recente solo ogni tanto (circa
+          // una volta al giorno, e non sempre alla riapertura di un'app già installata). Forza
+          // subito un controllo, e ne rifà uno ogni volta che l'app torna in primo piano: così
+          // chi ha l'app già installata vede il banner "Nuova versione disponibile" appena
+          // possibile, invece di restare bloccato su una versione vecchia senza saperlo.
+          registration.update().catch(() => {});
+          document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') registration.update().catch(() => {});
+          });
         }).catch(err => console.error('SW registration failed:', err));
       });
     }
