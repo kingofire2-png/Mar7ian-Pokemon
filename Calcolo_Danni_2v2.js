@@ -220,25 +220,43 @@
     `;
   }
 
+  // Descrive gli effetti di una mossa potenziante (es. "+1 Attacco, +1 Velocità") riusando le
+  // stesse etichette di STAT_NAMES_ITA e lo stesso segno mostrato dai giochi.
+  function describeBoostChanges(changes) {
+    return changes.map(c => `${c.stages > 0 ? '+' : ''}${c.stages} ${STAT_NAMES_ITA[c.stat] || c.stat}`).join(', ');
+  }
+
+  // Un checkbox per mossa potenziante (Danzaspada, Dragodanza, ecc.) invece dei pulsanti +/- a
+  // fase singola, più intuitivo — stessa tabella già usata per l'applicazione automatica delle
+  // mosse alleate (window.SharedData.STAT_BOOST_MOVES, solo le mosse target:'self': quelle che
+  // buffano l'alleato di squadra, es. Coaching, restano gestite dal menu "Mossa" già esistente).
   function buildStageAdjustorHtml(key, slot) {
-    const rows = STAGE_STAT_KEYS.map(k => {
-      const v = slot.statStages[k] || 0;
-      const color = v > 0 ? 'var(--lime)' : (v < 0 ? '#ef4444' : 'var(--text-muted)');
-      return `
-        <div style="display:flex; align-items:center; justify-content:space-between; gap:4px; font-size:0.65rem;">
-          <span style="color:var(--text-muted);">${STAT_NAMES_ITA[k]}</span>
-          <div style="display:flex; align-items:center; gap:4px;">
-            <button type="button" onclick="window.Calc2v2.adjustStage('${key}', '${k}', -1)" style="width:18px; height:18px; line-height:16px; padding:0; background:var(--bg-dark); border:1px solid var(--border-color); color:#fff; border-radius:4px; cursor:pointer; font-size:0.7rem;">-</button>
-            <span style="width:24px; text-align:center; font-weight:800; color:${color};">${v > 0 ? '+' + v : v}</span>
-            <button type="button" onclick="window.Calc2v2.adjustStage('${key}', '${k}', 1)" style="width:18px; height:18px; line-height:16px; padding:0; background:var(--bg-dark); border:1px solid var(--border-color); color:#fff; border-radius:4px; cursor:pointer; font-size:0.7rem;">+</button>
-          </div>
-        </div>
-      `;
-    }).join('');
+    const boostRows = Object.entries(window.SharedData.STAT_BOOST_MOVES)
+      .filter(([, boost]) => boost.target === 'self')
+      .map(([name, boost]) => `
+        <label style="display:flex; align-items:center; gap:5px; font-size:0.66rem; cursor:pointer;">
+          <input type="checkbox" ${slot.selfBoosts[name] ? 'checked' : ''} onchange="window.Calc2v2.toggleSelfBoost('${key}', '${name}', this.checked)">
+          <span>${name}</span>
+          <span style="color:var(--text-muted); font-size:0.58rem;">(${describeBoostChanges(boost.changes)})</span>
+        </label>
+      `).join('');
+
+    const summaryRows = STAGE_STAT_KEYS
+      .filter(k => slot.statStages[k])
+      .map(k => {
+        const v = slot.statStages[k];
+        const color = v > 0 ? 'var(--lime)' : '#ef4444';
+        return `<span style="color:${color}; font-weight:800;">${STAT_NAMES_ITA[k]} ${v > 0 ? '+' + v : v}</span>`;
+      });
+    const summaryHtml = summaryRows.length
+      ? `<div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; padding-top:6px; border-top:1px solid var(--border-color); font-size:0.64rem;">${summaryRows.join('')}</div>`
+      : '';
+
     return `
       <div style="margin-bottom:10px;">
-        <div style="font-size:0.62rem; font-weight:800; color:var(--text-muted); margin-bottom:4px; letter-spacing:0.4px;">FASI STATISTICHE</div>
-        <div style="display:flex; flex-direction:column; gap:2px;">${rows}</div>
+        <div style="font-size:0.62rem; font-weight:800; color:var(--text-muted); margin-bottom:4px; letter-spacing:0.4px;">MOSSE POTENZIANTI GIÀ USATE</div>
+        <div style="display:flex; flex-direction:column; gap:4px;">${boostRows}</div>
+        ${summaryHtml}
       </div>
     `;
   }
@@ -430,6 +448,7 @@
         evs: emptyEvs(),
         nature: 'Ardita',
         statStages: emptyStages(),
+        selfBoosts: {},
         selectedMove: '',
         selectedTarget: '',
         appliedBoost: null,
@@ -474,9 +493,15 @@
     renderSlotCard(key);
   };
 
-  window.Calc2v2.adjustStage = function (key, statKey, delta) {
-    if (!slots[key]) return;
-    slots[key].statStages[statKey] = clampStage((slots[key].statStages[statKey] || 0) + delta);
+  window.Calc2v2.toggleSelfBoost = function (key, moveName, checked) {
+    const slot = slots[key];
+    const boost = window.SharedData.STAT_BOOST_MOVES[moveName];
+    if (!slot || !boost || boost.target !== 'self') return;
+    slot.selfBoosts[moveName] = checked;
+    const sign = checked ? 1 : -1;
+    boost.changes.forEach(c => {
+      slot.statStages[c.stat] = clampStage((slot.statStages[c.stat] || 0) + sign * c.stages);
+    });
     renderSlotCard(key);
   };
 

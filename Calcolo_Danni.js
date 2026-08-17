@@ -70,6 +70,13 @@ function getPokemonMoves(name) {
   }
   let statStagesA = emptyStages();
   let statStagesB = emptyStages();
+  // Mosse potenzianti già usate prima dello scambio da calcolare (Danzaspada, Dragodanza,
+  // ecc.): un checkbox per mossa invece dei pulsanti +/- a fase singola, più intuitivo. Le
+  // fasi statistiche restano il dato usato dal motore di calcolo (statStagesA/B) — i checkbox
+  // sono solo un modo più leggibile di impostarle, presa dalla stessa tabella già usata nel
+  // Doppio per l'applicazione automatica delle mosse alleate (window.SharedData.STAT_BOOST_MOVES).
+  let selfBoostsA = {};
+  let selfBoostsB = {};
 
   // Condizioni di campo/stato lette dal motore di calcolo (Calcolo_Danni_Engine.js) tramite
   // window.getCalc1v1FieldConditions: meteo/terreno sono globali, bruciatura/critico riguardano
@@ -106,26 +113,39 @@ function getPokemonMoves(name) {
     ).join('');
   }
 
-  function buildStageAdjustorHtml(slot, stages) {
-    const STAT_NAMES_STAGE = { attack: 'Attacco', defense: 'Difesa', 'special-attack': 'Sp. Atk', 'special-defense': 'Sp. Def', speed: 'Velocità' };
-    const rows = Object.keys(STAT_NAMES_STAGE).map(k => {
-      const v = stages[k] || 0;
-      const color = v > 0 ? '#84cc16' : (v < 0 ? '#ef4444' : 'var(--text-muted)');
-      return `
-        <div style="display:flex; align-items:center; justify-content:space-between; gap:4px; font-size:0.7rem;">
-          <span style="color:var(--text-muted);">${STAT_NAMES_STAGE[k]}</span>
-          <div style="display:flex; align-items:center; gap:4px;">
-            <button type="button" onclick="window.updateStatStage('${slot}', '${k}', -1)" style="width:20px; height:20px; line-height:18px; padding:0; background:var(--bg-dark); border:1px solid var(--border-color); color:#fff; border-radius:4px; cursor:pointer; font-size:0.75rem;">-</button>
-            <span style="width:26px; text-align:center; font-weight:800; color:${color};">${v > 0 ? '+' + v : v}</span>
-            <button type="button" onclick="window.updateStatStage('${slot}', '${k}', 1)" style="width:20px; height:20px; line-height:18px; padding:0; background:var(--bg-dark); border:1px solid var(--border-color); color:#fff; border-radius:4px; cursor:pointer; font-size:0.75rem;">+</button>
-          </div>
-        </div>
-      `;
-    }).join('');
+  // Descrive gli effetti di una mossa potenziante (es. "+1 Attacco, +1 Velocità") riusando le
+  // stesse etichette di STAT_NAMES_ITA e lo stesso segno mostrato dai giochi.
+  function describeBoostChanges(changes) {
+    return changes.map(c => `${c.stages > 0 ? '+' : ''}${c.stages} ${STAT_NAMES_ITA[c.stat] || c.stat}`).join(', ');
+  }
+
+  function buildStageAdjustorHtml(slot, stages, selfBoosts) {
+    const boostRows = Object.entries(window.SharedData.STAT_BOOST_MOVES)
+      .filter(([, boost]) => boost.target === 'self')
+      .map(([name, boost]) => `
+        <label style="display:flex; align-items:center; gap:6px; font-size:0.72rem; cursor:pointer;">
+          <input type="checkbox" ${selfBoosts[name] ? 'checked' : ''} onchange="window.updateSelfBoost('${slot}', '${name}', this.checked)">
+          <span>${name}</span>
+          <span style="color:var(--text-muted); font-size:0.62rem;">(${describeBoostChanges(boost.changes)})</span>
+        </label>
+      `).join('');
+
+    const summaryRows = Object.keys(stages)
+      .filter(k => stages[k])
+      .map(k => {
+        const v = stages[k];
+        const color = v > 0 ? '#84cc16' : '#ef4444';
+        return `<span style="color:${color}; font-weight:800;">${STAT_NAMES_ITA[k] || k} ${v > 0 ? '+' + v : v}</span>`;
+      });
+    const summaryHtml = summaryRows.length
+      ? `<div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; padding-top:8px; border-top:1px solid var(--border-color); font-size:0.7rem;">${summaryRows.join('')}</div>`
+      : `<div style="margin-top:8px; padding-top:8px; border-top:1px solid var(--border-color); font-size:0.68rem; color:var(--text-muted);">Nessuna fase statistica attiva</div>`;
+
     return `
       <div style="background: var(--bg-dark); padding: 10px; border-radius: 8px; margin-bottom: 12px; border: 1px solid var(--border-color);">
-        <div style="font-size:0.68rem; font-weight:800; color:var(--text-muted); margin-bottom:6px; letter-spacing:0.4px;">FASI STATISTICHE</div>
-        <div style="display:flex; flex-direction:column; gap:4px;">${rows}</div>
+        <div style="font-size:0.68rem; font-weight:800; color:var(--text-muted); margin-bottom:6px; letter-spacing:0.4px;">MOSSE POTENZIANTI GIÀ USATE</div>
+        <div style="display:flex; flex-direction:column; gap:5px;">${boostRows}</div>
+        ${summaryHtml}
       </div>
     `;
   }
@@ -135,9 +155,16 @@ function getPokemonMoves(name) {
     else { natureB = natureKey; renderPokemonB(); }
   };
 
-  window.updateStatStage = function (slot, statKey, delta) {
+  window.updateSelfBoost = function (slot, moveName, checked) {
+    const boost = window.SharedData.STAT_BOOST_MOVES[moveName];
+    if (!boost || boost.target !== 'self') return;
     const stages = slot === 'A' ? statStagesA : statStagesB;
-    stages[statKey] = clampStage((stages[statKey] || 0) + delta);
+    const selfBoosts = slot === 'A' ? selfBoostsA : selfBoostsB;
+    selfBoosts[moveName] = checked;
+    const sign = checked ? 1 : -1;
+    boost.changes.forEach(c => {
+      stages[c.stat] = clampStage((stages[c.stat] || 0) + sign * c.stages);
+    });
     if (slot === 'A') renderPokemonA(); else renderPokemonB();
   };
 
@@ -557,6 +584,7 @@ function getPokemonMoves(name) {
         statsBonusA = { 'hp': 0, 'attack': 0, 'defense': 0, 'special-attack': 0, 'special-defense': 0, 'speed': 0 };
         natureA = 'Ardita';
         statStagesA = emptyStages();
+        selfBoostsA = {};
         await renderPokemonA();
       } else {
         pokemonB = pokemonObj;
@@ -564,6 +592,7 @@ function getPokemonMoves(name) {
         statsBonusB = { 'hp': 0, 'attack': 0, 'defense': 0, 'special-attack': 0, 'special-defense': 0, 'speed': 0 };
         natureB = 'Ardita';
         statStagesB = emptyStages();
+        selfBoostsB = {};
         renderPokemonB();
       }
 
@@ -727,7 +756,7 @@ data-pp="${m.pp}">
         </select>
       </div>
 
-      ${buildStageAdjustorHtml('A', statStagesA)}
+      ${buildStageAdjustorHtml('A', statStagesA, selfBoostsA)}
 
       <div style="display: flex; gap: 14px; margin-bottom: 12px; font-size: 0.75rem; color: var(--text-muted);">
         <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
@@ -794,7 +823,7 @@ data-pp="${m.pp}">
         </select>
       </div>
 
-      ${buildStageAdjustorHtml('B', statStagesB)}
+      ${buildStageAdjustorHtml('B', statStagesB, selfBoostsB)}
 
       <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; font-size: 0.72rem; color: var(--text-muted);">
         <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
