@@ -8,8 +8,6 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./styles.css?v=1.7">
-  <link rel="manifest" href="./manifest.json">
-  <meta name="theme-color" content="#38bdf8">
 </head>
 <body>
   <div class="app-shell">
@@ -128,67 +126,18 @@
   <script src="team-builder-engine.js"></script>
   <script src="team-builder.js"></script>
 
-  <!-- Service worker per supporto offline: registrato dopo il caricamento completo della
-       pagina per non competere per banda con pokemon-moves.json (20MB), che è già l'asset
-       dominante al primo caricamento. Include il rilevamento di nuove versioni: un
-       aggiornamento non si attiva mai da solo (vedi sw.js), ma mostra un banner che lo attiva
-       su richiesta dell'utente. -->
+  <!-- Supporto offline (PWA) rimosso su richiesta: sull'iPhone dell'utente il banner di
+       aggiornamento non compariva e l'app installata sulla schermata Home restava bloccata
+       senza mostrare nulla. Questo script NON registra più alcun service worker: si limita a
+       "smontare" quello già installato nei browser che lo avevano preso in carico prima di
+       questa modifica, così anche chi ha già l'app sulla Home tornerà a vedere sempre l'ultima
+       versione pubblicata, senza cache di mezzo. sw.js resta nel repository (contenuto
+       sostituito con un solo compito: disinstallarsi, svuotare le cache e ricaricare) proprio
+       per raggiungere questi client già registrati — va lasciato lì, non va cancellato. -->
   <script>
     if ('serviceWorker' in navigator) {
-      let refreshingAfterUpdate = false;
-
-      function showUpdateBanner(registration) {
-        if (document.getElementById('sw-update-banner')) return;
-        const banner = document.createElement('div');
-        banner.id = 'sw-update-banner';
-        banner.className = 'sw-update-banner';
-        banner.innerHTML = `
-          <span>🔄 Nuova versione disponibile</span>
-          <button type="button">Aggiorna</button>
-        `;
-        banner.querySelector('button').addEventListener('click', () => {
-          if (registration.waiting) {
-            registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-          }
-        });
-        document.body.appendChild(banner);
-      }
-
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (refreshingAfterUpdate) return;
-        refreshingAfterUpdate = true;
-        window.location.reload();
-      });
-
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').then((registration) => {
-          // Un aggiornamento potrebbe essere già arrivato (installato in attesa) mentre
-          // questa pagina non era la prima ad aprirsi, o tra due caricamenti.
-          if (registration.waiting && navigator.serviceWorker.controller) {
-            showUpdateBanner(registration);
-          }
-          registration.addEventListener('updatefound', () => {
-            const newWorker = registration.installing;
-            if (!newWorker) return;
-            newWorker.addEventListener('statechange', () => {
-              // "installed" + un controller già esistente = aggiornamento vero, non la prima
-              // installazione in assoluto (dove non c'è ancora nulla da sostituire).
-              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                showUpdateBanner(registration);
-              }
-            });
-          });
-
-          // Il browser controlla da solo se c'è un sw.js più recente solo ogni tanto (circa
-          // una volta al giorno, e non sempre alla riapertura di un'app già installata). Forza
-          // subito un controllo, e ne rifà uno ogni volta che l'app torna in primo piano: così
-          // chi ha l'app già installata vede il banner "Nuova versione disponibile" appena
-          // possibile, invece di restare bloccato su una versione vecchia senza saperlo.
-          registration.update().catch(() => {});
-          document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'visible') registration.update().catch(() => {});
-          });
-        }).catch(err => console.error('SW registration failed:', err));
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        registrations.forEach((registration) => registration.update().catch(() => {}));
       });
     }
   </script>
