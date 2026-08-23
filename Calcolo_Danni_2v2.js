@@ -96,9 +96,12 @@
 
       <div style="background-image: var(--glass-sheen); background-color: rgba(18,24,36,0.45); backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); box-shadow: 0 8px 24px rgba(0,0,0,0.3), inset 0 1px 0 var(--glass-highlight); border: 1px solid rgba(255,255,255,0.08); border-radius: var(--radius-lg); padding: 20px; margin-bottom: 24px;">
         <h3 style="color: #fff; margin-bottom: 14px; text-align: center;">Calcola Danno</h3>
-        <div style="display:flex; justify-content:center; margin-bottom:14px;">
+        <div style="display:flex; flex-wrap:wrap; justify-content:center; gap:16px; margin-bottom:14px;">
           <label style="font-size:0.75rem; color:var(--text-muted); display:flex; align-items:center; gap:6px; cursor:pointer;">
-            <input type="checkbox" id="dv-tailwind-ally"> 💨 Ventoincoda attivo lato Alleati (raddoppia la Velocità)
+            <input type="checkbox" id="dv-tailwind-ally" onchange="window.Calc2v2.updateTailwindAlly()"> 💨 Ventoincoda attivo lato Alleati (raddoppia la Velocità)
+          </label>
+          <label style="font-size:0.75rem; color:var(--text-muted); display:flex; align-items:center; gap:6px; cursor:pointer;">
+            <input type="checkbox" id="dv-tailwind-opp" onchange="window.Calc2v2.updateTailwindOpp()"> 💨 Ventoincoda attivo lato Avversari (raddoppia la Velocità)
           </label>
         </div>
         <div style="display:flex; flex-wrap:wrap; justify-content:center; gap:16px; margin-bottom:14px;">
@@ -280,13 +283,20 @@
     }
 
     const typesHtml = slot.types.map(t => `<span style="background: var(--border-color); padding: 2px 6px; border-radius: 4px; font-size: 0.65rem; margin-right: 4px;">${(TYPE_NAMES_ITA[t] || t).toUpperCase()}</span>`).join('');
-    const evRowsHtml = STAT_KEYS.map(k => `
+    // Ventoincoda raddoppia la Velocità solo del lato che lo ha attivo: la Velocità mostrata
+    // in scheda riflette il checkbox del proprio lato (alleati/avversari), letto dal DOM come
+    // gia' fa window.Calc2v2.calculate() per l'ordine di turno degli alleati.
+    const tailwindActiveForSide = document.getElementById(isAlly ? 'dv-tailwind-ally' : 'dv-tailwind-opp')?.checked || false;
+    const evRowsHtml = STAT_KEYS.map(k => {
+      const displayVal = (k === 'speed' && tailwindActiveForSide) ? effectiveStat(slot, k) * 2 : effectiveStat(slot, k);
+      return `
       <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; font-size:0.68rem;">
         <span style="color:var(--text-muted);">${STAT_NAMES_ITA[k]}</span>
-        <span style="font-weight:700;">${effectiveStat(slot, k)}</span>
+        <span style="font-weight:700;">${displayVal}</span>
         <input type="number" min="0" max="32" value="${slot.evs[k]}" onchange="window.Calc2v2.updateEv('${key}', '${k}', this.value)" style="width:38px; background:var(--bg-dark); border:1px solid var(--border-color); color:#fff; text-align:center; border-radius:4px; padding:2px; font-size:0.68rem;">
       </div>
-    `).join('');
+    `;
+    }).join('');
 
     el.innerHTML = `
       <div style="background-image: var(--glass-sheen); background-color: rgba(24,32,48,0.45); backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); box-shadow: 0 8px 20px rgba(0,0,0,0.3), inset 0 1px 0 var(--glass-highlight); border: 1px solid ${meta.color}; border-radius: var(--radius-lg); padding: 14px; position:relative;">
@@ -508,6 +518,11 @@
   window.Calc2v2.updateFieldWeather = function (value) { fieldWeather = value; };
   window.Calc2v2.updateFieldTerrain = function (value) { fieldTerrain = value; };
   window.Calc2v2.updateScreenOpp = function (key, checked) { screensOpp[key] = checked; };
+
+  // Ridisegna solo le schede del lato interessato, cosi' la Velocità mostrata si aggiorna
+  // subito quando si spunta/toglie Ventoincoda, senza dover ricalcolare il danno.
+  window.Calc2v2.updateTailwindAlly = function () { ['ally1', 'ally2'].forEach(k => { if (slots[k]) renderSlotCard(k); }); };
+  window.Calc2v2.updateTailwindOpp = function () { ['opp1', 'opp2'].forEach(k => { if (slots[k]) renderSlotCard(k); }); };
 
   window.Calc2v2.updateBurn = function (key, checked) {
     if (slots[key]) slots[key].isBurned = checked;
