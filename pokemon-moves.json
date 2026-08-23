@@ -7239,6 +7239,21 @@
             "value": "MT124"
           }
         ]
+      },
+      {
+        "name": "Zampillo",
+        "slug": "Zampillo",
+        "type": "Acqua",
+        "category": "Speciale",
+        "power": 150,
+        "accuracy": 100,
+        "pp": 5,
+        "methods": [
+          {
+            "method": "egg",
+            "value": null
+          }
+        ]
       }
     ]
   },
@@ -200400,6 +200415,96 @@
             "value": "MT167"
           }
         ]
+      },
+      {
+        "name": "Beccata",
+        "slug": "Beccata",
+        "type": "Volante",
+        "category": "Fisico",
+        "power": 35,
+        "accuracy": 100,
+        "pp": 35,
+        "methods": [
+          {
+            "method": "egg",
+            "value": null
+          }
+        ]
+      },
+      {
+        "name": "Contrattacco",
+        "slug": "Contrattacco",
+        "type": "Lotta",
+        "category": "Fisico",
+        "power": null,
+        "accuracy": 100,
+        "pp": 20,
+        "methods": [
+          {
+            "method": "egg",
+            "value": null
+          }
+        ]
+      },
+      {
+        "name": "Fintoattacco",
+        "slug": "Fintoattacco",
+        "type": "Normale",
+        "category": "Fisico",
+        "power": 30,
+        "accuracy": 100,
+        "pp": 10,
+        "methods": [
+          {
+            "method": "egg",
+            "value": null
+          }
+        ]
+      },
+      {
+        "name": "Nottesferza",
+        "slug": "Nottesferza",
+        "type": "Buio",
+        "category": "Fisico",
+        "power": 70,
+        "accuracy": 100,
+        "pp": 15,
+        "methods": [
+          {
+            "method": "egg",
+            "value": null
+          }
+        ]
+      },
+      {
+        "name": "Tritartigli",
+        "slug": "Tritartigli",
+        "type": "Normale",
+        "category": "Fisico",
+        "power": 75,
+        "accuracy": 95,
+        "pp": 10,
+        "methods": [
+          {
+            "method": "egg",
+            "value": null
+          }
+        ]
+      },
+      {
+        "name": "Ultimascelta",
+        "slug": "Ultimascelta",
+        "type": "Normale",
+        "category": "Fisico",
+        "power": 140,
+        "accuracy": 100,
+        "pp": 5,
+        "methods": [
+          {
+            "method": "egg",
+            "value": null
+          }
+        ]
       }
     ]
   },
@@ -307140,6 +307245,51 @@
             "value": "MT167"
           }
         ]
+      },
+      {
+        "name": "Furia",
+        "slug": "Furia",
+        "type": "Normale",
+        "category": "Fisico",
+        "power": 15,
+        "accuracy": 85,
+        "pp": 20,
+        "methods": [
+          {
+            "method": "egg",
+            "value": null
+          }
+        ]
+      },
+      {
+        "name": "Sgomento",
+        "slug": "Sgomento",
+        "type": "Spettro",
+        "category": "Fisico",
+        "power": 30,
+        "accuracy": 100,
+        "pp": 15,
+        "methods": [
+          {
+            "method": "egg",
+            "value": null
+          }
+        ]
+      },
+      {
+        "name": "Turbosabbia",
+        "slug": "Turbosabbia",
+        "type": "Terra",
+        "category": "Stato",
+        "power": null,
+        "accuracy": 100,
+        "pp": 15,
+        "methods": [
+          {
+            "method": "egg",
+            "value": null
+          }
+        ]
       }
     ]
   },
@@ -339181,6 +339331,36 @@
           {
             "method": "tm",
             "value": "MT006"
+          }
+        ]
+      },
+      {
+        "name": "Colpo",
+        "slug": "Colpo",
+        "type": "Normale",
+        "category": "Fisico",
+        "power": 120,
+        "accuracy": 100,
+        "pp": 10,
+        "methods": [
+          {
+            "method": "egg",
+            "value": null
+          }
+        ]
+      },
+      {
+        "name": "Tornado",
+        "slug": "Tornado",
+        "type": "Drago",
+        "category": "Speciale",
+        "power": 40,
+        "accuracy": 100,
+        "pp": 20,
+        "methods": [
+          {
+            "method": "egg",
+            "value": null
           }
         ]
       }
@@ -506254,6 +506434,126 @@
           {
             "method": "tm",
             "value": "MT041"
+          }
+        ]
+      },
+      {
+        "name": "Desiderio",
+        "slug": "Desiderio",
+        "type": "Normale",
+        "category": "Stato",
+        "power": null,
+        "accuracy": "—",
+        "pp": 10,
+        "methods": [
+          {
+            "method": "egg",
+            "value": null
+          }
+        ]
+      },
+      {
+        "name": "Doppiocalcio",
+        "slug": "Doppiocalcio",
+        "type": "Lotta",
+        "category": "Fisico",
+        "power": 30,
+        "accuracy": 100,
+        "pp": 30,
+        "methods": [
+          {
+            "method": "egg",
+            "value": null
+          }
+        ]
+      },
+      {
+        "name": "Fangosberla",
+        "slug": "Fangosberla",
+        "type": "Terra",
+        "category": "Speciale",
+        "power": 20,
+        "accuracy": 100,
+        "pp": 10,
+        "methods": [
+          {
+            "method": "egg",
+            "value": null
+          }
+        ]
+      },
+      {
+        "name": "Flagello",
+        "slug": "Flagello",
+        "type": "Normale",
+        "category": "Fisico",
+        "power": null,
+        "accuracy": 100,
+        "pp": 15,
+        "methods": [
+          {
+            "method": "egg",
+            "value": null
+          }
+        ]
+      },
+      {
+        "name": "Individua",
+        "slug": "Individua",
+        "type": "Lotta",
+        "category": "Stato",
+        "power": null,
+        "accuracy": "—",
+        "pp": 5,
+        "methods": [
+          {
+            "method": "egg",
+            "value": null
+          }
+        ]
+      },
+      {
+        "name": "Maledizione",
+        "slug": "Maledizione",
+        "type": "Spettro",
+        "category": "Stato",
+        "power": null,
+        "accuracy": "—",
+        "pp": 10,
+        "methods": [
+          {
+            "method": "egg",
+            "value": null
+          }
+        ]
+      },
+      {
+        "name": "Sbadiglio",
+        "slug": "Sbadiglio",
+        "type": "Normale",
+        "category": "Stato",
+        "power": null,
+        "accuracy": 100,
+        "pp": 10,
+        "methods": [
+          {
+            "method": "egg",
+            "value": null
+          }
+        ]
+      },
+      {
+        "name": "Solletico",
+        "slug": "Solletico",
+        "type": "Normale",
+        "category": "Stato",
+        "power": null,
+        "accuracy": 100,
+        "pp": 20,
+        "methods": [
+          {
+            "method": "egg",
+            "value": null
           }
         ]
       }
@@ -892112,6 +892412,66 @@
           {
             "method": "tm",
             "value": "MT052"
+          }
+        ]
+      },
+      {
+        "name": "Extrasenso",
+        "slug": "Extrasenso",
+        "type": "Psico",
+        "category": "Speciale",
+        "power": 80,
+        "accuracy": 100,
+        "pp": 20,
+        "methods": [
+          {
+            "method": "egg",
+            "value": null
+          }
+        ]
+      },
+      {
+        "name": "Individua",
+        "slug": "Individua",
+        "type": "Lotta",
+        "category": "Stato",
+        "power": null,
+        "accuracy": "—",
+        "pp": 5,
+        "methods": [
+          {
+            "method": "egg",
+            "value": null
+          }
+        ]
+      },
+      {
+        "name": "Memento",
+        "slug": "Memento",
+        "type": "Buio",
+        "category": "Stato",
+        "power": null,
+        "accuracy": 100,
+        "pp": 10,
+        "methods": [
+          {
+            "method": "egg",
+            "value": null
+          }
+        ]
+      },
+      {
+        "name": "Ritorsione",
+        "slug": "Ritorsione",
+        "type": "Buio",
+        "category": "Fisico",
+        "power": null,
+        "accuracy": 100,
+        "pp": 10,
+        "methods": [
+          {
+            "method": "egg",
+            "value": null
           }
         ]
       }
