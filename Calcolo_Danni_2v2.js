@@ -28,6 +28,27 @@
     opp2: { label: 'Avversario 2', side: 'opp', color: 'var(--violet)' }
   };
 
+  // Priorità di turno delle mosse più comuni (valore di gioco fisso, non dipende dal Pokémon).
+  // Non è un elenco esaustivo di tutte le mosse a priorità esistenti, solo le più diffuse in
+  // VGC — verificate una per una contro pokemon-moves.json per non confondere nomi simili
+  // (es. Fintoattacco/Fake Out e Anticipo/Feint hanno le stesse statistiche in italiano).
+  const MOVE_PRIORITY = {
+    'Altruismo': 5,     // Helping Hand
+    'Protezione': 4,    // Protect
+    'Individua': 4,     // Detect
+    'Fintoattacco': 3,  // Fake Out
+    'Extrarapido': 2,   // Extreme Speed
+    'Pugnorapido': 1,   // Mach Punch
+    'Pugnoscarica': 1,  // Bullet Punch
+    'Geloscheggia': 1,  // Ice Shard
+    'Acquagetto': 1,    // Aqua Jet
+    'Furtivombra': 1,   // Shadow Sneak
+    'Vuotonda': 1,      // Vacuum Wave
+    'Sbigoattacco': 1,  // Sucker Punch
+    'Attacco Rapido': 1, // Quick Attack
+    'Rocciarapida': 1   // Accelerock
+  };
+
   let slots = { ally1: null, ally2: null, opp1: null, opp2: null };
   let pickerTargetSlot = null;
   let selectedPickerTypes = [];
@@ -181,12 +202,35 @@
     ).join('');
   }
 
+  function buildAbilityOptionsHtml(slot) {
+    if (!slot.abilitiesAvailable || !slot.abilitiesAvailable.length) return `<option value="">— Nessuna abilità nota —</option>`;
+    return slot.abilitiesAvailable.map(a =>
+      `<option value="${a.slug}" ${a.slug === slot.abilitySlug ? 'selected' : ''}>${a.displayName}${a.isHidden ? ' (Nascosta)' : ''}</option>`
+    ).join('');
+  }
+
+  // Mosse raggruppate per tipo (stesso schema già usato nel Calcolo Danni 1v1 e nella
+  // Squadra VGC), invece dell'elenco piatto in ordine alfabetico di prima.
   function buildMoveOptionsHtml(slot) {
     const moves = window.SharedData.getPokemonMoves(slot.name);
     if (!moves.length) return `<option value="">Nessuna mossa nel DB</option>`;
-    return `<option value="">— scegli mossa —</option>` + moves.map(m =>
-      `<option value="${m.name}" ${m.name === slot.selectedMove ? 'selected' : ''}>[${m.type}] ${m.name} (${m.category})</option>`
-    ).join('');
+
+    const groupedMoves = {};
+    moves.forEach(m => {
+      if (!groupedMoves[m.type]) groupedMoves[m.type] = [];
+      groupedMoves[m.type].push(m);
+    });
+
+    let optionsHtml = '';
+    for (const [typeKey, movesGroup] of Object.entries(groupedMoves)) {
+      const typeLabelITA = typeKey.toUpperCase();
+      optionsHtml += `<optgroup label="TIPO ${typeLabelITA}">`;
+      movesGroup.forEach(m => {
+        optionsHtml += `<option value="${m.name}" ${m.name === slot.selectedMove ? 'selected' : ''}>[${typeLabelITA}] ${m.name} (${m.category})</option>`;
+      });
+      optionsHtml += `</optgroup>`;
+    }
+    return `<option value="">— scegli mossa —</option>` + optionsHtml;
   }
 
   function moveCategoryOf(move) {
@@ -324,6 +368,11 @@
             ${buildNatureOptionsHtml(slot.nature)}
           </select>
         </label>
+        <label style="font-size:0.62rem; color:var(--text-muted); font-weight:700; display:block; margin-bottom:8px;">Abilità
+          <select onchange="window.Calc2v2.updateAbility('${key}', this.value)" style="width:100%; margin-top:4px; background:var(--bg-dark); border:1px solid var(--border-color); color:#fff; padding:6px; border-radius:6px; font-size:0.72rem;">
+            ${buildAbilityOptionsHtml(slot)}
+          </select>
+        </label>
         ${isAlly ? `
         <label style="font-size:0.62rem; color:var(--text-muted); font-weight:700; display:block; margin-bottom:8px;">Mossa
           <select onchange="window.Calc2v2.onSlotMoveChange('${key}', this.value)" style="width:100%; margin-top:4px; background:var(--bg-dark); border:1px solid var(--border-color); color:#fff; padding:6px; border-radius:6px; font-size:0.72rem;">
@@ -448,12 +497,30 @@
     if (!key) return;
     try {
       const data = await window.SharedData.getSpeciesDetail(id);
+
+      // Stesso schema di risoluzione abilità già usato nella Squadra VGC (team-builder.js):
+      // nome italiano ufficiale via PokeAPI, con fallback al nome inglese se la traduzione
+      // fallisce. Serve sia da mostrare in scheda sia per effetti come Burla (vedi calculate()).
+      const abilitiesResolved = await Promise.all(data.abilities.map(async a => {
+        let displayName = a.ability.name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        try {
+          const abRes = await fetch(a.ability.url);
+          const abData = await abRes.json();
+          const it = abData.names.find(n => n.language.name === 'it');
+          if (it) displayName = it.name;
+        } catch (e) { /* mantieni il nome inglese come fallback */ }
+        return { slug: a.ability.name, displayName, isHidden: a.is_hidden };
+      }));
+
       slots[key] = {
         id: data.id,
         name: data.name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
         image: data.sprites.other['official-artwork'].front_default || data.sprites.front_default,
         types: data.types.map(t => t.type.name),
         stats: data.stats,
+        abilitiesAvailable: abilitiesResolved,
+        abilitySlug: abilitiesResolved[0] ? abilitiesResolved[0].slug : '',
+        abilityDisplayName: abilitiesResolved[0] ? abilitiesResolved[0].displayName : '',
         item: '',
         evs: emptyEvs(),
         nature: 'Ardita',
@@ -500,6 +567,15 @@
   window.Calc2v2.updateNature = function (key, natureKey) {
     if (!slots[key]) return;
     slots[key].nature = natureKey;
+    renderSlotCard(key);
+  };
+
+  window.Calc2v2.updateAbility = function (key, slug) {
+    const slot = slots[key];
+    if (!slot) return;
+    const found = (slot.abilitiesAvailable || []).find(a => a.slug === slug);
+    slot.abilitySlug = slug;
+    slot.abilityDisplayName = found ? found.displayName : slug;
     renderSlotCard(key);
   };
 
@@ -670,6 +746,57 @@
     };
   }
 
+  // Ordine di turno per tutti e 4 gli slot occupati, non solo gli alleati: prima la priorità
+  // della mossa scelta (con il bonus dell'abilità Burla sulle mosse di stato), poi a parità di
+  // priorità la Velocità effettiva (Ventoincoda del proprio lato già incluso). Gli avversari,
+  // che in questo calcolatore non scelgono una mossa da eseguire, restano a priorità 0 e vengono
+  // ordinati solo per Velocità — utile comunque per farsi un'idea di quando agirebbero davvero.
+  function computeSpeedOrder() {
+    const tailwindAllyOn = document.getElementById('dv-tailwind-ally')?.checked || false;
+    const tailwindOppOn = document.getElementById('dv-tailwind-opp')?.checked || false;
+
+    const entries = Object.keys(SLOT_META)
+      .filter(key => slots[key])
+      .map(key => {
+        const slot = slots[key];
+        const meta = SLOT_META[key];
+        const isAlly = meta.side === 'ally';
+        const tailwindOn = isAlly ? tailwindAllyOn : tailwindOppOn;
+        const effSpeed = effectiveStat(slot, 'speed') * (tailwindOn ? 2 : 1);
+
+        let priority = 0;
+        let reason = 'speed';
+        let moveName = null;
+
+        if (isAlly && slot.selectedMove) {
+          const move = window.SharedData.getPokemonMoves(slot.name).find(m => m.name === slot.selectedMove);
+          if (move) {
+            moveName = move.name;
+            priority = MOVE_PRIORITY[move.name] || 0;
+            const isPrankster = slot.abilitySlug === 'prankster' && moveCategoryOf(move) === 'status';
+            if (isPrankster) priority += 1;
+            if (priority > 0) reason = isPrankster ? 'ability' : 'move-priority';
+          }
+        }
+
+        return { key, slot, meta, effSpeed, priority, reason, moveName };
+      });
+
+    entries.sort((a, b) => (b.priority - a.priority) || (b.effSpeed - a.effSpeed));
+    return entries;
+  }
+
+  function describeSpeedOrderEntry(e, isFirst) {
+    const lead = isFirst ? ' per primo' : '';
+    if (e.reason === 'ability') {
+      return `attacca${lead} perché usa <b>${e.moveName}</b> con l'abilità <b>${e.slot.abilityDisplayName}</b> (priorità +${e.priority})`;
+    }
+    if (e.reason === 'move-priority') {
+      return `attacca${lead} perché usa <b>${e.moveName}</b> (priorità +${e.priority})`;
+    }
+    return `attacca${lead} perché ha Velocità <b>${Math.round(e.effSpeed)}</b>`;
+  }
+
   // ===============================
   // Risoluzione del turno
   // ===============================
@@ -745,16 +872,21 @@
       });
     });
 
-    renderTurnSummary(log, actions, tailwindAlly);
+    renderTurnSummary(log, computeSpeedOrder());
   };
 
   // ===============================
   // Riepilogo turno + barra HP animata
   // ===============================
-  function renderTurnSummary(log, actions, tailwindAlly) {
-    const orderText = actions.map((a, i) =>
-      `${i + 1}. ${SLOT_META[a.key].label} (${a.slot.name}) — Vel. ${Math.round(a.effSpeed)}`
-    ).join(' → ');
+  function renderTurnSummary(log, speedOrder) {
+    const speedOrderHtml = speedOrder.map((e, i) => `
+      <div style="display:flex; align-items:baseline; gap:6px; font-size:0.75rem; padding:4px 0; ${i > 0 ? 'border-top:1px solid var(--border-color);' : ''}">
+        <span style="font-weight:800; color:${e.meta.color};">${i + 1}.</span>
+        <span>
+          <b>${e.slot.name}</b> <span style="color:var(--text-muted);">(${e.meta.label})</span> ${describeSpeedOrderEntry(e, i === 0)}
+        </span>
+      </div>
+    `).join('');
 
     const barAnimations = [];
 
@@ -825,7 +957,8 @@
     overlay.innerHTML = `
       <div style="background-image: var(--glass-sheen); background-color: rgba(18,24,36,0.6); backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); border: 1px solid rgba(56,189,248,0.4); border-radius: var(--radius-lg); padding: 24px; max-width: 560px; width: 100%; max-height: 85vh; overflow-y:auto; color: #fff;">
         <h2 style="font-size:1.1rem; color: var(--accent); margin-bottom:10px; text-align:center;">Riepilogo Turno</h2>
-        <div style="font-size:0.75rem; text-align:center; margin-bottom:16px; padding:8px; background:var(--bg-dark); border-radius:8px; color:var(--text-muted);">Ordine: ${orderText}${tailwindAlly ? ' · Ventoincoda attivo (Alleati)' : ''}</div>
+        <div style="font-size:0.72rem; font-weight:800; color:var(--text-muted); margin-bottom:4px; letter-spacing:0.4px;">ORDINE DI VELOCITÀ</div>
+        <div style="margin-bottom:16px; padding:10px; background:var(--bg-dark); border-radius:8px;">${speedOrderHtml}</div>
         ${blocksHtml}
         <button id="dv2v2-close-modal" style="width:100%; margin-top:6px; padding:10px; background:var(--border-color); border:none; color:#fff; font-weight:700; border-radius:8px; cursor:pointer;">CHIUDI</button>
       </div>
